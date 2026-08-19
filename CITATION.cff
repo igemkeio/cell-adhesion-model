@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: 細胞接着モデル — 鎖になるか、束になるか
+message: このソフトウェアを利用した場合は、以下の情報で引用してください。
+type: software
+authors:
+  - name: iGEM Keio
+abstract: >-
+  極局在させたアドヘシンで大腸菌どうしを接着させたときにできる多細胞構造が、
+  鎖になるか束になるかを予測する粗視化モデル。物理定数はすべて
+  Costan et al., Matter (2024) の実測値に固定してあり、調整パラメータを持たない。
+keywords:
+  - synthetic biology
+  - cell adhesion
+  - Escherichia coli
+  - coarse-grained model
+  - iGEM
+license: MIT
+version: 1.0.0
+date-released: "2026-08-20"
+references:
+  - type: article
+    authors:
+      - family-names: Costan
+        given-names: Sara A.
+      - family-names: Kim
+        given-names: Honesty
+    title: >-
+      Biophysical characterization of synthetic adhesins for predicting and
+      tuning engineered living material properties
+    journal: Matter
+    volume: "7"
+    start: 2836
+    end: 2854
+    year: 2024
+    doi: 10.1016/j.matt.2024.03.019
