@@ -96,13 +96,14 @@ termの使い方など所々不自然なところありますが，用語集な�
 
 科学的な再現性のため、この2つは明示的に分離して管理している。
 
+- **[docs/localization_feasibility.md](docs/localization_feasibility.md)** — 極局在は実現できるかの文献調査。
 - **[docs/glossary.md](docs/glossary.md)** — 用語集。先端集中幅・接触パッチ・極局在比など、
   本文と図に出てくる用語の定義、記号、コード上の名前、代表値の対応表。**最初にここを読むとよい。**
 - **[docs/source_comparison.md](docs/source_comparison.md)** — 原著の導出式との照合。
   どこが一致し、どこがなぜ違うかを式のレベルで記録している。
 - **[docs/parameters.md](docs/parameters.md)** — 使用した文献値の一覧。
   値・単位・不確かさ・出典が対応表になっている。
-- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 12 個の仮定。
+- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 13 個の仮定。
   各仮定について、そう置いた根拠と、**もし破れていたら結果がどう変わるか**を併記。
 
 どちらも `adhesion/literature.py` と `adhesion/assumptions.py` から自動生成される
@@ -257,6 +258,17 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 島が局在の単位であるならば、この幅には到達できない可能性がある（仮定 A11）。
 
 **したがって本モデルの「鎖ができる条件」は必要条件であって、達成可能性を保証しない。**
+
+達成可能性を文献で調べた結果は **[docs/localization_feasibility.md](docs/localization_feasibility.md)**
+にまとめた。要点は次のとおり。
+
+- 外膜タンパクの極局在に**前例はある**（Shigella IcsA）。局在配列は転移可能で、
+  異種タンパクの表面提示にも使われている
+- しかし IcsA は**単極（old pole）**であり、本モデルではそれは二量体どまりを意味する
+- **対称二極の外膜提示には前例が見つからなかった**
+- Intimin 自体は EPEC でも**一様分布**と報告されており、実測（p = 0.56）と独立に一致する
+- 鎖という形だけが目的なら、**アミダーゼ（AmiABC）欠損で娘細胞の分離を止める**
+  という確立した経路がある。ただしそれは「どの細胞がいつ繋がるか」を設計できない
 
 膜内の輸送速度についても2つの文献が食い違っている。合成アドヘシンでは
 *D* = 0.36 µm²/s（可動割合 0.37）だが、内在性の外膜タンパクでは

@@ -259,6 +259,28 @@ A12_STATIC_DISTRIBUTION = Assumption(
 )
 
 
+A13_BRIDGE_MUCH_SMALLER_THAN_CAP = Assumption(
+    id="A13",
+    statement=(
+        "架橋長は極半球の大きさに比べて十分小さいとし、極接触と側面接触を"
+        "別々の事象として扱う。"
+    ),
+    rationale=(
+        "実測の架橋長 2M = 8 nm では接触パッチの半径が 57 nm で、極半球の測地距離"
+        "0.628 µm の 1 割にも満たない。両者は明確に分かれる。"
+    ),
+    impact=(
+        "架橋長を仮想的に大きくすると接触パッチが極半球に匹敵する大きさになり、"
+        "極に置いた分子が横並び接触でも拾われるようになる。2M = 128 nm では"
+        "全分子を極に置いても極接触と側面接触がほぼ同数になり、判定が数値的な"
+        "同着になって意味を失う。リンカー長の設計を検討する場合、本モデルは"
+        "2M が 50 nm 程度までしか信頼できない。それ以上を扱うなら、極と側面を"
+        "面積で二分する枠組み自体を作り直す必要がある。"
+    ),
+    status=Status.SIMPLIFICATION,
+)
+
+
 ALL_ASSUMPTIONS: list[Assumption] = [
     A1_RIGID_SPHEROCYLINDER,
     A2_BRIDGE_IS_TOTAL_GAP,
@@ -272,6 +294,7 @@ ALL_ASSUMPTIONS: list[Assumption] = [
     A10_UNIFORM_IS_BASELINE,
     A11_ISLAND_CONFINEMENT,
     A12_STATIC_DISTRIBUTION,
+    A13_BRIDGE_MUCH_SMALLER_THAN_CAP,
 ]
 
 BY_ID: dict[str, Assumption] = {item.id: item for item in ALL_ASSUMPTIONS}
