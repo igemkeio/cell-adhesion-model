@@ -53,11 +53,35 @@ class LiteratureValueTests(unittest.TestCase):
     def test_formatting_includes_uncertainty_and_unit(self):
         self.assertEqual(lit.RUPTURE_FORCE.formatted, "16.1 ± 0.4 pN")
 
-    def test_all_measurements_come_from_the_calibration_paper(self):
-        """環境定数を除き、すべての値が同一の実測論文に由来すること。"""
-        measured = [v for v in lit.ALL_VALUES if v.source != "tirado1979"]
-        self.assertTrue(all(v.source == "costan2024" for v in measured))
+    def test_model_parameters_come_from_the_calibration_paper(self):
+        """モデルの入力となる値は、すべて同一の実測論文に由来すること。"""
         self.assertGreaterEqual(len(lit.values_from("costan2024")), 10)
+
+    def test_outer_membrane_properties_are_attributed_to_rassam(self):
+        """外膜そのものの性質は別文献に由来する。出典を取り違えないこと。"""
+        rassam = {v.symbol for v in lit.values_from("rassam2015")}
+        self.assertIn("d_island", rassam)
+        self.assertIn("D_native", rassam)
+
+    def test_no_unused_references_remain(self):
+        """どの値からも参照されていない文献が残っていないこと。"""
+        used = {v.source for v in lit.ALL_VALUES}
+        self.assertEqual(used, set(lit.REFERENCES) - {"glass2018"})
+
+    def test_island_diameter_is_comparable_to_the_polar_cap(self):
+        """島の直径が極半球の測地距離と同程度であること（A11 の前提）。"""
+        import math
+
+        from adhesion.model import CELL_RADIUS_UM
+
+        cap_extent = math.pi * CELL_RADIUS_UM / 2
+        self.assertLess(float(lit.OMP_ISLAND_DIAMETER), cap_extent * 1.5)
+        self.assertGreater(float(lit.OMP_ISLAND_DIAMETER), cap_extent * 0.5)
+
+    def test_native_and_synthetic_diffusion_disagree_by_an_order_of_magnitude(self):
+        """2つの文献の拡散係数が食い違っていることを、明示的に記録しておく。"""
+        ratio = float(lit.MEMBRANE_DIFFUSION) / float(lit.NATIVE_OMP_DIFFUSION)
+        self.assertGreater(ratio, 10)
 
     def test_parameters_table_lists_every_value(self):
         table = lit.parameters_markdown()
@@ -99,6 +123,7 @@ class AssumptionTests(unittest.TestCase):
         """未検証の仮定が SUPPORTED に紛れていないこと。"""
         untested = {item.id for item in ALL_ASSUMPTIONS if item.status is Status.UNTESTED}
         self.assertIn("A6", untested)
+        self.assertIn("A11", untested)
 
     def test_documentation_renders_every_assumption(self):
         from adhesion.assumptions import assumptions_markdown

@@ -82,19 +82,6 @@ REFERENCES: dict[str, Reference] = {
         pages="333-336",
         doi="10.1038/nature14461",
     ),
-    "tirado1979": Reference(
-        key="tirado1979",
-        authors="Tirado, Maria M. and Garcia de la Torre, Jose",
-        title=(
-            "Translational friction coefficients of rigid, symmetric top macromolecules. "
-            "Application to circular cylinders"
-        ),
-        journal="The Journal of Chemical Physics",
-        year=1979,
-        volume="71",
-        pages="2581-2587",
-        doi="10.1063/1.438613",
-    ),
 }
 
 
@@ -193,6 +180,11 @@ MEMBRANE_DIFFUSION = LiteratureValue(
     unit="µm²/s",
     quantity="外膜内でのアドヘシンの拡散係数",
     source="costan2024",
+    note=(
+        "FRAP による測定。ただし内在性外膜タンパクについて Rassam et al. (2015) が"
+        "報告した値（BtuB で 0.013、Cir で 0.019 µm²/s）より約 20 倍速い。"
+        "可動割合が 0.37 にとどまることと合わせて、外膜内の輸送は速いとは言い切れない。"
+    ),
 )
 
 MOBILE_FRACTION = LiteratureValue(
@@ -270,6 +262,35 @@ DECAY_RATE = LiteratureValue(
 )
 
 # --------------------------------------------------------------------------
+# 外膜そのものの性質（別文献。モデルの制約を評価するために使う）
+# --------------------------------------------------------------------------
+OMP_ISLAND_DIAMETER = LiteratureValue(
+    symbol="d_island",
+    value=0.5,
+    unit="µm",
+    quantity="外膜タンパクが作る島の直径",
+    source="rassam2015",
+    note=(
+        "外膜タンパクは数百分子からなる島に凝集し、島の内部に拡散が閉じ込められる。"
+        "極半球の測地距離は 0.628 µm なので、島ひとつが極をほぼ覆う大きさにあたる。"
+        "これより細かく局在を絞れるかは自明でない（仮定 A11）。"
+    ),
+)
+
+NATIVE_OMP_DIFFUSION = LiteratureValue(
+    symbol="D_native",
+    value=0.013,
+    unit="µm²/s",
+    quantity="内在性外膜タンパク（BtuB）の拡散係数",
+    source="rassam2015",
+    note=(
+        "単一分子追跡による。Cir では 0.019 µm²/s。コリシン標識した BtuB・Cir は"
+        "3 分たっても FRAP による蛍光回復を示さず、事実上不動であった。"
+        "Costan et al. が合成アドヘシンで測った 0.36 µm²/s とは約 20 倍の開きがある。"
+    ),
+)
+
+# --------------------------------------------------------------------------
 # 検証に使う報告値（モデルの入力ではなく、答え合わせの対象）
 # --------------------------------------------------------------------------
 REPORTED_BONDS_PARALLEL = LiteratureValue(
@@ -309,19 +330,6 @@ REPORTED_CONTACT_FRACTION_MAX = LiteratureValue(
     note="配置に依存して 0.002–0.036 の範囲で変わると報告されている。",
 )
 
-# --------------------------------------------------------------------------
-# 環境
-# --------------------------------------------------------------------------
-WATER_VISCOSITY = LiteratureValue(
-    symbol="η",
-    value=1.0,
-    unit="mPa·s",
-    quantity="培地の動粘性（水で近似）",
-    source="tirado1979",
-    note="Tirado らの抵抗係数式と組で使うため、便宜上ここに置く。",
-)
-
-
 ALL_VALUES: list[LiteratureValue] = [
     CELL_LENGTH,
     CELL_RADIUS,
@@ -339,7 +347,8 @@ ALL_VALUES: list[LiteratureValue] = [
     REPORTED_BONDS_PERPENDICULAR,
     REPORTED_CONTACT_FRACTION_MIN,
     REPORTED_CONTACT_FRACTION_MAX,
-    WATER_VISCOSITY,
+    OMP_ISLAND_DIAMETER,
+    NATIVE_OMP_DIFFUSION,
 ]
 
 

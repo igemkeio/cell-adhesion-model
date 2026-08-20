@@ -44,7 +44,9 @@ UNIFORM_F_POLE = polar_area_fraction(CELL_LENGTH_UM, CELL_RADIUS_UM)
 #: 結合が1本も成立しないとみなす下限。
 MIN_BONDS_FOR_CONTACT = 1.0
 
-MODEL_ASSUMPTIONS = uses("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A10")
+MODEL_ASSUMPTIONS = uses(
+    "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A10", "A11", "A12"
+)
 
 _SURFACE_CACHE: dict[int, SurfaceQuadrature] = {}
 

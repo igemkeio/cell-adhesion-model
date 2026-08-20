@@ -5,7 +5,7 @@
 モデルが使う物理定数の一覧。すべて `adhesion/literature.py` で出典と一体で
 定義されており、コード中に数値を直書きしている箇所はない。
 
-内訳はCostan et al. (2024) から 16 件、Tirado et al. (1979) から 1 件。
+内訳はCostan et al. (2024) から 16 件、Rassam et al. (2015) から 2 件。
 
 | 記号 | 量 | 値 | 出典 | 備考 |
 |---|---|---:|---|---|
@@ -13,7 +13,7 @@
 | `r` | 細胞の半径 | 0.40 ± 0.10 µm | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
 | `2M` | アドヘシン対が架橋できる全長 | 8.00 nm | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 片方の細胞表面から、ナノボディと抗原の両方を経て、相手の細胞表面までの全長。2細胞をまたぐ総額なので、両細胞ぶんを足してはいけない。 |
 | `F_b` | 単一アドヘシン結合の破断力 | 16.1 ± 0.4 pN | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 光ピンセットによる測定（n = 14 細胞）。本文の値は 16.1 ± 0.4 pN だが、論文の要約表では 16.2 と表記され、系統誤差 1.8 pN が併記されている。本モデルは本文の値を採る。なお文献からの期待値は 28–45 pN で、実測はそれより小さい。 |
-| `D` | 外膜内でのアドヘシンの拡散係数 | 0.36 ± 0.06 µm²/s | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
+| `D` | 外膜内でのアドヘシンの拡散係数 | 0.36 ± 0.06 µm²/s | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | FRAP による測定。ただし内在性外膜タンパクについて Rassam et al. (2015) が報告した値（BtuB で 0.013、Cir で 0.019 µm²/s）より約 20 倍速い。可動割合が 0.37 にとどまることと合わせて、外膜内の輸送は速いとは言い切れない。 |
 | `M_f` | 拡散可能なアドヘシンの割合 | 0.37 ± 0.04 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 残り63%は不動。外膜タンパクの島構造と整合的。 |
 | `f_p` | プラスミドコピー数の非対称に対する補正係数 | 0.50 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | ナノボディ側は中コピー数プラスミド（20–30 コピー）、抗原側は低コピー数プラスミド（10–12 コピー）に載っている。抗原の数が約半分で結合数の律速になるため、著者らは総分子数を 0.5 倍して結合ペア数を見積もっている。「幾何的に届く分子のうち結合する割合」ではないことに注意。 |
 | `N_100` | アドヘシン数（100 ng/mL aTc 誘導時） | 7,300 ± 1,800 分子/細胞 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
@@ -25,7 +25,8 @@
 | `n_⊥` | 直交した2細胞間の結合数 | 7.00 ± 2.00 対 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 100 ng/mL 誘導時。接触面積が最小になる配置。モデルの検証対象。 |
 | `A_con,min` | 接触面積が細胞表面積に占める割合（下限） | 0.00 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
 | `A_con,max` | 接触面積が細胞表面積に占める割合（上限） | 0.04 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 配置に依存して 0.002–0.036 の範囲で変わると報告されている。 |
-| `η` | 培地の動粘性（水で近似） | 1.00 mPa·s | [Tirado et al. (1979)](https://doi.org/10.1063/1.438613) | Tirado らの抵抗係数式と組で使うため、便宜上ここに置く。 |
+| `d_island` | 外膜タンパクが作る島の直径 | 0.50 µm | [Rassam et al. (2015)](https://doi.org/10.1038/nature14461) | 外膜タンパクは数百分子からなる島に凝集し、島の内部に拡散が閉じ込められる。極半球の測地距離は 0.628 µm なので、島ひとつが極をほぼ覆う大きさにあたる。これより細かく局在を絞れるかは自明でない（仮定 A11）。 |
+| `D_native` | 内在性外膜タンパク（BtuB）の拡散係数 | 0.01 µm²/s | [Rassam et al. (2015)](https://doi.org/10.1038/nature14461) | 単一分子追跡による。Cir では 0.019 µm²/s。コリシン標識した BtuB・Cir は3 分たっても FRAP による蛍光回復を示さず、事実上不動であった。Costan et al. が合成アドヘシンで測った 0.36 µm²/s とは約 20 倍の開きがある。 |
 
 ## 値の性格について
 
@@ -42,7 +43,6 @@
 - Costan, Stefana A. and Ryan, Paul M. and Kim, Honesty and Wolgemuth, Charles W. and Riedel-Kruse, Ingmar H. (2024). Biophysical characterization of synthetic adhesins for predicting and tuning engineered living material properties. *Matter **7**, 2125-2143*. <https://doi.org/10.1016/j.matt.2024.03.019>
 - Glass, David S. and Riedel-Kruse, Ingmar H. (2018). A Synthetic Bacterial Cell-Cell Adhesion Toolbox for Programming Multicellular Morphologies and Patterns. *Cell **174**, 649-658*. <https://doi.org/10.1016/j.cell.2018.06.041>
 - Rassam, Patrice and Copeland, Nicholas A. and Others (2015). Supramolecular assemblies underpin turnover of outer membrane proteins in bacteria. *Nature **523**, 333-336*. <https://doi.org/10.1038/nature14461>
-- Tirado, Maria M. and Garcia de la Torre, Jose (1979). Translational friction coefficients of rigid, symmetric top macromolecules. Application to circular cylinders. *The Journal of Chemical Physics **71**, 2581-2587*. <https://doi.org/10.1063/1.438613>
 
 ---
 生成日: 2026-08-21

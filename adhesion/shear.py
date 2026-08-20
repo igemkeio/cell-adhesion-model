@@ -19,8 +19,8 @@ SHEAR_ASSUMPTIONS = uses("A8", "A9")
 #: 水の動粘度（m²/s）。20-37 度で 1e-6 のオーダー。
 KINEMATIC_VISCOSITY_M2_S = 1e-6
 
-#: 培地の粘度（Pa·s）。
-DYNAMIC_VISCOSITY_PA_S = float(lit.WATER_VISCOSITY) * 1e-3
+#: 培地の粘度（Pa·s）。水の標準物性値で近似する（特定の文献に由来する値ではない）。
+DYNAMIC_VISCOSITY_PA_S = 1e-3
 
 #: 室温での熱エネルギー（J）。
 THERMAL_ENERGY_J = 4.11e-21
