@@ -26,7 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import font_manager
-from matplotlib.patches import Arc, Polygon
+from matplotlib.patches import Arc, Circle, Polygon, Rectangle
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -261,41 +261,96 @@ def panel_gap(axes):
 
 
 def panel_patch_vs_strip(axes):
-    """実寸比。パッチが線1本分にしか見えないことが要点。"""
-    # 左: 極 - 極
-    axes.text(-2.7, 1.42, "極 - 極（鎖の単位）", ha="center", fontsize=10, weight="bold")
-    draw_cell(axes, -3.6, 0.30)
-    draw_cell(axes, -1.8, 0.30)
-    axes.plot([-2.7, -2.7], [0.30 - PATCH_RADIUS, 0.30 + PATCH_RADIUS],
-              color=COLOR_POLE, lw=5, solid_capstyle="round", zorder=6)
-    axes.annotate(
-        "接触パッチ\n半径 56.6 nm・面積 0.0101 µm²\n表面の 0.22 %",
-        xy=(-2.7, 0.30), xytext=(-2.7, -1.28),
-        fontsize=9, color=COLOR_POLE, weight="bold", ha="center", va="center",
-        arrowprops=dict(arrowstyle="-", color=COLOR_POLE, lw=1.1),
-    )
+    """接触領域を正面から見た実形状で比較する。
 
-    # 右: 側面 - 側面
-    axes.text(2.7, 1.42, "側面 - 側面（束の単位）", ha="center", fontsize=10, weight="bold")
-    draw_cell(axes, 2.7, 0.30 + RADIUS)
-    draw_cell(axes, 2.7, 0.30 - RADIUS)
-    axes.plot([2.7 - HALF_CYLINDER, 2.7 + HALF_CYLINDER], [0.30, 0.30],
-              color=COLOR_SIDE, lw=5, solid_capstyle="butt", zorder=6)
-    axes.annotate(
-        "接触ストリップ\n幅 113 nm × 長さ 1.0 µm・面積 0.1131 µm²\n表面の 2.50 %",
-        xy=(2.7, 0.30), xytext=(2.7, -1.28),
-        fontsize=9, color=COLOR_SIDE, weight="bold", ha="center", va="center",
-        arrowprops=dict(arrowstyle="-", color=COLOR_SIDE, lw=1.1),
+    横から見ると接触領域は線にしか見えず、面積であることが伝わらない。
+    そこで接触面を正面から見た形を同一倍率で並べ、面積比を目で見えるようにする。
+
+    要点は、2つの接触領域が同じ幅を持つこと。どちらも幅は
+    2 * sqrt(架橋長 * 細胞半径) = 113 nm で決まり、違いは長さだけである。
+    """
+    ZOOM = 4.0                                # 拡大部の縮尺: 1 µm = 4 データ単位
+    patch_diameter = 2 * PATCH_RADIUS         # 0.1131 µm
+    strip_length = LENGTH - 2 * RADIUS        # 1.0 µm
+    left_edge = 0.55                          # 拡大形状の左端をそろえる
+    width_drawn = patch_diameter * ZOOM
+
+    # ---------------- 上段: 極 - 極 ----------------
+    y_top = 1.15
+    draw_cell(axes, -4.60, y_top)
+    draw_cell(axes, -2.80, y_top)
+    axes.plot([-3.70, -3.70], [y_top - PATCH_RADIUS, y_top + PATCH_RADIUS],
+              color=COLOR_POLE, lw=4, solid_capstyle="round", zorder=6)
+    axes.text(-3.70, y_top + 0.68, "極 - 極（鎖の単位）",
+              ha="center", fontsize=10, weight="bold")
+    axes.text(-3.70, y_top - 0.66, "横から見ると線にしか見えない",
+              ha="center", fontsize=8, color=COLOR_MUTED, style="italic")
+
+    radius_drawn = 0.5 * width_drawn
+    axes.add_patch(
+        Circle((left_edge + radius_drawn, y_top), radius_drawn,
+               facecolor=COLOR_POLE, alpha=0.35, edgecolor=COLOR_POLE, lw=1.6, zorder=4)
     )
+    axes.annotate("", xy=(left_edge - 0.30, y_top), xytext=(-2.00, y_top),
+                  arrowprops=dict(arrowstyle="->", color=COLOR_MUTED, lw=1.3))
+    axes.text(-0.75, y_top + 0.22, "接触面を正面から見る",
+              ha="center", fontsize=8.5, color=COLOR_MUTED)
+    axes.text(left_edge + width_drawn + 0.30, y_top,
+              "円盤　直径 113 nm\n面積 0.0101 µm²（表面の 0.22 %）",
+              ha="left", va="center", fontsize=9.5, color=COLOR_POLE, weight="bold")
+
+    # ---------------- 下段: 側面 - 側面 ----------------
+    y_bottom = -1.05
+    draw_cell(axes, -3.70, y_bottom + RADIUS)
+    draw_cell(axes, -3.70, y_bottom - RADIUS)
+    axes.plot([-3.70 - HALF_CYLINDER, -3.70 + HALF_CYLINDER], [y_bottom, y_bottom],
+              color=COLOR_SIDE, lw=4, solid_capstyle="butt", zorder=6)
+    axes.text(-3.70, y_bottom + 1.06, "側面 - 側面（束の単位）",
+              ha="center", fontsize=10, weight="bold")
+    axes.text(-3.70, y_bottom - 1.08, "同じく線にしか見えない",
+              ha="center", fontsize=8, color=COLOR_MUTED, style="italic")
+
+    axes.add_patch(
+        Rectangle((left_edge, y_bottom - width_drawn / 2),
+                  strip_length * ZOOM, width_drawn,
+                  facecolor=COLOR_SIDE, alpha=0.35, edgecolor=COLOR_SIDE,
+                  lw=1.6, zorder=4)
+    )
+    axes.annotate("", xy=(left_edge - 0.30, y_bottom), xytext=(-2.00, y_bottom),
+                  arrowprops=dict(arrowstyle="->", color=COLOR_MUTED, lw=1.3))
+    axes.text(left_edge + strip_length * ZOOM + 0.30, y_bottom,
+              "帯　幅 113 nm × 長さ 1.0 µm\n面積 0.1131 µm²（表面の 2.50 %）",
+              ha="left", va="center", fontsize=9.5, color=COLOR_SIDE, weight="bold")
+
+    # ---------------- 幅が同一であることを示す ----------------
+    for y, colour in ((y_top, COLOR_POLE), (y_bottom, COLOR_SIDE)):
+        axes.annotate(
+            "", xy=(left_edge - 0.14, y - width_drawn / 2),
+            xytext=(left_edge - 0.14, y + width_drawn / 2),
+            arrowprops=dict(arrowstyle="<->", color=colour, lw=1.4),
+        )
+    axes.plot([left_edge - 0.14] * 2,
+              [y_bottom + width_drawn / 2, y_top - width_drawn / 2],
+              color=COLOR_MUTED, lw=0.9, ls=":")
+    axes.text(left_edge - 0.30, 0.05, "幅は同一\n113 nm", ha="right", va="center",
+              fontsize=8.5, color=COLOR_INK, weight="bold")
+
+    # 拡大部の縮尺バー
+    axes.plot([left_edge, left_edge + 0.5 * ZOOM], [-2.02, -2.02],
+              color=COLOR_INK, lw=2.5, solid_capstyle="butt")
+    axes.text(left_edge + ZOOM * 0.25, -2.30, "500 nm（拡大部の縮尺）",
+              ha="center", fontsize=8.5, color=COLOR_INK)
 
     axes.text(
-        0, 0.30, "面積比\n11.3 倍\n\n局在させなければ\n必ず束になる",
-        fontsize=10, ha="center", va="center", weight="bold", color=COLOR_INK,
-        bbox=dict(boxstyle="round,pad=0.5", facecolor="#F2F4F1", edgecolor=COLOR_EDGE),
+        -3.70, -2.16,
+        "どちらの接触領域も幅は 2√(架橋長 × 細胞半径) = 113 nm で同じ。\n"
+        "違いは長さだけで、それが面積比 11.3 倍の正体である。",
+        ha="center", va="center", fontsize=9, color=COLOR_INK,
+        bbox=dict(boxstyle="round,pad=0.45", facecolor="#F2F4F1", edgecolor=COLOR_EDGE),
     )
 
-    finish(axes, (-5.6, 5.6), (-2.05, 1.95),
-           "C　接触パッチと接触ストリップ（細胞は実寸比）")
+    finish(axes, (-6.1, 6.9), (-2.70, 2.10),
+           "C　接触領域の実形状　左：細胞は実寸比／右：接触面を正面から見た図（同一倍率）")
 
 
 def panel_localization(axes):

@@ -35,8 +35,8 @@ CELL_RADIUS_UM = float(lit.CELL_RADIUS)
 BRIDGE_UM = float(lit.BRIDGE_LENGTH) / 1000.0
 RUPTURE_FORCE_PN = float(lit.RUPTURE_FORCE)
 
-#: 幾何的に接触可能な分子のうち実際に結合を作る割合（A4）。
-FUNCTIONAL_FRACTION = 0.5
+#: プラスミドコピー数の非対称に対する補正係数（A4）。抗原側が律速になる。
+FUNCTIONAL_FRACTION = float(lit.COPY_NUMBER_CORRECTION)
 
 #: 局在を操作しない場合の分布（A10）。Costan et al. (2024) の実測は一様。
 UNIFORM_F_POLE = polar_area_fraction(CELL_LENGTH_UM, CELL_RADIUS_UM)

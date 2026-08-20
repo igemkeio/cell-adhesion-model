@@ -45,7 +45,10 @@ class Reference:
 REFERENCES: dict[str, Reference] = {
     "costan2024": Reference(
         key="costan2024",
-        authors="Costan, Sara A. and Kim, Honesty and Others",
+        authors=(
+            "Costan, Stefana A. and Ryan, Paul M. and Kim, Honesty and "
+            "Wolgemuth, Charles W. and Riedel-Kruse, Ingmar H."
+        ),
         title=(
             "Biophysical characterization of synthetic adhesins for predicting "
             "and tuning engineered living material properties"
@@ -53,7 +56,7 @@ REFERENCES: dict[str, Reference] = {
         journal="Matter",
         year=2024,
         volume="7",
-        pages="2836-2854",
+        pages="2125-2143",
         doi="10.1016/j.matt.2024.03.019",
     ),
     "glass2018": Reference(
@@ -176,7 +179,11 @@ RUPTURE_FORCE = LiteratureValue(
     unit="pN",
     quantity="単一アドヘシン結合の破断力",
     source="costan2024",
-    note="光ピンセットによる測定。荷重速度 5–100 pN/s の範囲で値は変わらなかった。",
+    note=(
+        "光ピンセットによる測定（n = 14 細胞）。本文の値は 16.1 ± 0.4 pN だが、"
+        "論文の要約表では 16.2 と表記され、系統誤差 1.8 pN が併記されている。"
+        "本モデルは本文の値を採る。なお文献からの期待値は 28–45 pN で、実測はそれより小さい。"
+    ),
 )
 
 MEMBRANE_DIFFUSION = LiteratureValue(
@@ -196,6 +203,20 @@ MOBILE_FRACTION = LiteratureValue(
     quantity="拡散可能なアドヘシンの割合",
     source="costan2024",
     note="残り63%は不動。外膜タンパクの島構造と整合的。",
+)
+
+COPY_NUMBER_CORRECTION = LiteratureValue(
+    symbol="f_p",
+    value=0.5,
+    unit="",
+    quantity="プラスミドコピー数の非対称に対する補正係数",
+    source="costan2024",
+    note=(
+        "ナノボディ側は中コピー数プラスミド（20–30 コピー）、抗原側は低コピー数"
+        "プラスミド（10–12 コピー）に載っている。抗原の数が約半分で結合数の律速に"
+        "なるため、著者らは総分子数を 0.5 倍して結合ペア数を見積もっている。"
+        "「幾何的に届く分子のうち結合する割合」ではないことに注意。"
+    ),
 )
 
 # --------------------------------------------------------------------------
@@ -308,6 +329,7 @@ ALL_VALUES: list[LiteratureValue] = [
     RUPTURE_FORCE,
     MEMBRANE_DIFFUSION,
     MOBILE_FRACTION,
+    COPY_NUMBER_CORRECTION,
     ADHESINS_AT_MID_INDUCTION,
     ADHESINS_AT_MAX_INDUCTION,
     SURFACE_DENSITY_AT_MAX,

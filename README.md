@@ -103,7 +103,7 @@ RUPTURE_FORCE = LiteratureValue(
     unit="pN",
     quantity="単一アドヘシン結合の破断力",
     source="costan2024",
-    note="光ピンセットによる測定。荷重速度 5–100 pN/s の範囲で値は変わらなかった。",
+    note="光ピンセットによる測定（n = 14 細胞）。要約表では 16.2、系統誤差 1.8 pN。",
 )
 ```
 
@@ -219,9 +219,9 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 
 ## 引用文献
 
-- Costan, S. A., Kim, H. et al. (2024). Biophysical characterization of synthetic
+- Costan, S. A., Ryan, P. M., Kim, H., Wolgemuth, C. W. & Riedel-Kruse, I. H. (2024). Biophysical characterization of synthetic
   adhesins for predicting and tuning engineered living material properties.
-  *Matter* **7**, 2836–2854. <https://doi.org/10.1016/j.matt.2024.03.019>
+  *Matter* **7**, 2125–2143. <https://doi.org/10.1016/j.matt.2024.03.019>
 - Glass, D. S. & Riedel-Kruse, I. H. (2018). A Synthetic Bacterial Cell-Cell Adhesion
   Toolbox for Programming Multicellular Morphologies and Patterns.
   *Cell* **174**, 649–658. <https://doi.org/10.1016/j.cell.2018.06.041>

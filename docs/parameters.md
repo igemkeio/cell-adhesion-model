@@ -5,16 +5,17 @@
 モデルが使う物理定数の一覧。すべて `adhesion/literature.py` で出典と一体で
 定義されており、コード中に数値を直書きしている箇所はない。
 
-内訳はCostan et al. (2024) から 15 件、Tirado et al. (1979) から 1 件。
+内訳はCostan et al. (2024) から 16 件、Tirado et al. (1979) から 1 件。
 
 | 記号 | 量 | 値 | 出典 | 備考 |
 |---|---|---:|---|---|
 | `l` | 細胞の全長 | 1.80 ± 0.25 µm | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | スフェロシリンダー（円柱＋両端半球）として扱ったときの端から端まで。 |
 | `r` | 細胞の半径 | 0.40 ± 0.10 µm | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
 | `2M` | アドヘシン対が架橋できる全長 | 8.00 nm | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 片方の細胞表面から、ナノボディと抗原の両方を経て、相手の細胞表面までの全長。2細胞をまたぐ総額なので、両細胞ぶんを足してはいけない。 |
-| `F_b` | 単一アドヘシン結合の破断力 | 16.1 ± 0.4 pN | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 光ピンセットによる測定。荷重速度 5–100 pN/s の範囲で値は変わらなかった。 |
+| `F_b` | 単一アドヘシン結合の破断力 | 16.1 ± 0.4 pN | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 光ピンセットによる測定（n = 14 細胞）。本文の値は 16.1 ± 0.4 pN だが、論文の要約表では 16.2 と表記され、系統誤差 1.8 pN が併記されている。本モデルは本文の値を採る。なお文献からの期待値は 28–45 pN で、実測はそれより小さい。 |
 | `D` | 外膜内でのアドヘシンの拡散係数 | 0.36 ± 0.06 µm²/s | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
 | `M_f` | 拡散可能なアドヘシンの割合 | 0.37 ± 0.04 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 残り63%は不動。外膜タンパクの島構造と整合的。 |
+| `f_p` | プラスミドコピー数の非対称に対する補正係数 | 0.50 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | ナノボディ側は中コピー数プラスミド（20–30 コピー）、抗原側は低コピー数プラスミド（10–12 コピー）に載っている。抗原の数が約半分で結合数の律速になるため、著者らは総分子数を 0.5 倍して結合ペア数を見積もっている。「幾何的に届く分子のうち結合する割合」ではないことに注意。 |
 | `N_100` | アドヘシン数（100 ng/mL aTc 誘導時） | 7,300 ± 1,800 分子/細胞 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
 | `N_300` | アドヘシン数（300 ng/mL aTc、飽和誘導時） | 15,300 ± 4,100 分子/細胞 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) |  |
 | `σ_300` | 表面密度（飽和誘導時） | 3,400 ± 1,200 分子/µm² | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 外膜タンパク全種の総密度（10⁵ /µm² のオーダー）の数%にすぎない。 |
@@ -38,10 +39,10 @@
 
 ## 引用文献
 
-- Costan, Sara A. and Kim, Honesty and Others (2024). Biophysical characterization of synthetic adhesins for predicting and tuning engineered living material properties. *Matter **7**, 2836-2854*. <https://doi.org/10.1016/j.matt.2024.03.019>
+- Costan, Stefana A. and Ryan, Paul M. and Kim, Honesty and Wolgemuth, Charles W. and Riedel-Kruse, Ingmar H. (2024). Biophysical characterization of synthetic adhesins for predicting and tuning engineered living material properties. *Matter **7**, 2125-2143*. <https://doi.org/10.1016/j.matt.2024.03.019>
 - Glass, David S. and Riedel-Kruse, Ingmar H. (2018). A Synthetic Bacterial Cell-Cell Adhesion Toolbox for Programming Multicellular Morphologies and Patterns. *Cell **174**, 649-658*. <https://doi.org/10.1016/j.cell.2018.06.041>
 - Rassam, Patrice and Copeland, Nicholas A. and Others (2015). Supramolecular assemblies underpin turnover of outer membrane proteins in bacteria. *Nature **523**, 333-336*. <https://doi.org/10.1038/nature14461>
 - Tirado, Maria M. and Garcia de la Torre, Jose (1979). Translational friction coefficients of rigid, symmetric top macromolecules. Application to circular cylinders. *The Journal of Chemical Physics **71**, 2581-2587*. <https://doi.org/10.1063/1.438613>
 
 ---
-生成日: 2026-08-20
+生成日: 2026-08-21

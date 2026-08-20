@@ -21,15 +21,21 @@ references:
   - type: article
     authors:
       - family-names: Costan
-        given-names: Sara A.
+        given-names: Stefana A.
+      - family-names: Ryan
+        given-names: Paul M.
       - family-names: Kim
         given-names: Honesty
+      - family-names: Wolgemuth
+        given-names: Charles W.
+      - family-names: Riedel-Kruse
+        given-names: Ingmar H.
     title: >-
       Biophysical characterization of synthetic adhesins for predicting and
       tuning engineered living material properties
     journal: Matter
     volume: "7"
-    start: 2836
-    end: 2854
+    start: 2125
+    end: 2143
     year: 2024
     doi: 10.1016/j.matt.2024.03.019
