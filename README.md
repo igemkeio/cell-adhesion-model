@@ -48,6 +48,16 @@
 
 ![主要結果](results/figures/main_results.png)
 
+## 用語の図解
+
+本文と図に出てくる用語のうち、初見で分かりにくく、かつ結論を左右するものを図にまとめた。
+用語の一覧は [docs/glossary.md](docs/glossary.md) にある。
+
+![用語の図解](docs/figures/glossary_diagram.png)
+
+とくに **A**（測地距離）、**B**（接触パッチの半径がどこから来るか）、
+**D**（*f*pole = 0.444 が一様分布であること）は誤解しやすい。
+
 ## 検証
 
 モデルには調整パラメータがない。したがって以下の一致は較正の結果ではなく予測である。
@@ -69,6 +79,8 @@
 
 科学的な再現性のため、この2つは明示的に分離して管理している。
 
+- **[docs/glossary.md](docs/glossary.md)** — 用語集。先端集中幅・接触パッチ・極局在比など、
+  本文と図に出てくる用語の定義、記号、コード上の名前、代表値の対応表。**最初にここを読むとよい。**
 - **[docs/parameters.md](docs/parameters.md)** — 使用した文献値の一覧。
   値・単位・不確かさ・出典が対応表になっている。
 - **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 10 個の仮定。
@@ -143,6 +155,7 @@ scripts/
   validate.py      文献値との照合表を出力
   run_scan.py      局在の掃引 → CSV
   make_figures.py  主要結果の図
+  make_glossary_figure.py  用語の図解
   export_docs.py   docs/ をコードから生成
 tests/             60 件。うち検証テストが文献との整合を固定する
 docs/              自動生成されるパラメータ表と仮定一覧
@@ -159,6 +172,7 @@ python3 -m unittest discover -s tests -t .   # 60 件
 python3 scripts/validate.py                   # 文献値との照合
 python3 scripts/run_scan.py                   # 掃引 → results/data/
 python3 scripts/make_figures.py               # 図 → results/figures/
+python3 scripts/make_glossary_figure.py       # 用語の図解 → docs/figures/
 python3 scripts/export_docs.py                # docs/ を再生成
 ```
 
