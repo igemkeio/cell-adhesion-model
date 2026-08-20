@@ -11,6 +11,7 @@
 `geometry`     接触幾何。表面の求積と、架橋しうる分子の数え上げ
 `model`        発現量と局在から接着と形態を予測する
 `shear`        震盪培養での衝突頻度とせん断荷重
+`kinetics`     荷重下での結合寿命（別ペアの値を使う補助的な見積もり）
 
 使い方
 ------
@@ -21,8 +22,8 @@
 <Morphology.CHAIN: '鎖'>
 """
 
-from . import assumptions, geometry, literature, model, shear
+from . import assumptions, geometry, kinetics, literature, model, shear
 
-__all__ = ["assumptions", "geometry", "literature", "model", "shear"]
+__all__ = ["assumptions", "geometry", "kinetics", "literature", "model", "shear"]
 
 __version__ = "1.0.0"

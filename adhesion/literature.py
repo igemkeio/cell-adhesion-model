@@ -72,6 +72,19 @@ REFERENCES: dict[str, Reference] = {
         pages="649-658",
         doi="10.1016/j.cell.2018.06.041",
     ),
+    "klamecka2015": Reference(
+        key="klamecka2015",
+        authors=(
+            "Klamecka, Kamila and Severin, Philip M. and Milles, Lukas F. and "
+            "Gaub, Hermann E. and Leonhardt, Heinrich"
+        ),
+        title="Energy profile of nanobody-GFP complex under force",
+        journal="Physical Biology",
+        year=2015,
+        volume="12",
+        pages="056009",
+        doi="10.1088/1478-3975/12/5/056009",
+    ),
     "rassam2015": Reference(
         key="rassam2015",
         authors="Rassam, Patrice and Copeland, Nicholas A. and Others",
@@ -167,9 +180,13 @@ RUPTURE_FORCE = LiteratureValue(
     quantity="単一アドヘシン結合の破断力",
     source="costan2024",
     note=(
-        "光ピンセットによる測定（n = 14 細胞）。本文の値は 16.1 ± 0.4 pN だが、"
-        "論文の要約表では 16.2 と表記され、系統誤差 1.8 pN が併記されている。"
-        "本モデルは本文の値を採る。なお文献からの期待値は 28–45 pN で、実測はそれより小さい。"
+        "光ピンセットによる測定（n = 14 細胞）。本文の値は 16.1 ± 0.4 pN、"
+        "要約表では 16.2 と表記され系統誤差 1.8 pN が併記されている。本モデルは本文の値を採る。"
+        "この値は anti-EPEA / EPEA ペアの測定である（EPEA は4アミノ酸のペプチドタグ）。"
+        "原著の表が期待値として挙げる 28–45 pN は anti-GFP / GFP ペアの値なので、"
+        "両者は別の分子ペアであり食い違いではない。原著自身も『パラメータは"
+        "アドヘシンのペアごとに、とくに F_b は変わる』と註記している。"
+        "すなわち破断力はペアの選択で変えられる設計変数である。"
     ),
 )
 
@@ -221,6 +238,7 @@ ADHESINS_AT_MID_INDUCTION = LiteratureValue(
     unit="分子/細胞",
     quantity="アドヘシン数（100 ng/mL aTc 誘導時）",
     source="costan2024",
+    note="anti-GFP / GFP ペアでの測定。",
 )
 
 ADHESINS_AT_MAX_INDUCTION = LiteratureValue(
@@ -230,6 +248,7 @@ ADHESINS_AT_MAX_INDUCTION = LiteratureValue(
     unit="分子/細胞",
     quantity="アドヘシン数（300 ng/mL aTc、飽和誘導時）",
     source="costan2024",
+    note="anti-GFP / GFP ペアでの測定（n = 20 細胞）。",
 )
 
 SURFACE_DENSITY_AT_MAX = LiteratureValue(
@@ -291,6 +310,44 @@ NATIVE_OMP_DIFFUSION = LiteratureValue(
 )
 
 # --------------------------------------------------------------------------
+# 結合の速度論（別ペア・別文献。寿命の桁を見積もるために使う）
+# --------------------------------------------------------------------------
+BOND_OFF_RATE = LiteratureValue(
+    symbol="k_off",
+    value=1.45e-4,
+    unit="1/s",
+    quantity="無荷重での結合解離速度定数",
+    source="klamecka2015",
+    note=(
+        "anti-GFP / 野生型 GFP ペアの値。Klamecka らは Bell–Evans 回帰の際に"
+        "この文献値を固定して使っている。破断力を測ったペア（anti-EPEA）とは"
+        "異なるので、寿命の見積もりは桁の目安として扱うこと。"
+    ),
+)
+
+BOND_BARRIER_POSITION = LiteratureValue(
+    symbol="Δx",
+    value=1.59,
+    unit="nm",
+    quantity="結合解離のエネルギー障壁までの距離",
+    source="klamecka2015",
+    note=(
+        "単一末端でアンカーした野生型 GFP の値。eGFP では 1.36 nm、両末端"
+        "アンカーでは 2.02 nm となり、引く向きによって約 50 % 変わる。"
+        "細胞表面での引かれ方は AFM の配置と異なるため、この幅は無視できない。"
+    ),
+)
+
+BOND_DISSOCIATION_CONSTANT = LiteratureValue(
+    symbol="K_D",
+    value=1.4,
+    unit="nM",
+    quantity="ナノボディ–抗原の3次元解離定数",
+    source="klamecka2015",
+    note="anti-GFP / 野生型 GFP。eGFP では 0.59 nM。結合自由エネルギーは −25.3 kT。",
+)
+
+# --------------------------------------------------------------------------
 # 検証に使う報告値（モデルの入力ではなく、答え合わせの対象）
 # --------------------------------------------------------------------------
 REPORTED_BONDS_PARALLEL = LiteratureValue(
@@ -349,6 +406,9 @@ ALL_VALUES: list[LiteratureValue] = [
     REPORTED_CONTACT_FRACTION_MAX,
     OMP_ISLAND_DIAMETER,
     NATIVE_OMP_DIFFUSION,
+    BOND_OFF_RATE,
+    BOND_BARRIER_POSITION,
+    BOND_DISSOCIATION_CONSTANT,
 ]
 
 

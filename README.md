@@ -148,6 +148,13 @@ MODEL_ASSUMPTIONS = uses("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A10")
 接合強度 = 結合数 × 16.1 pN
 ```
 
+なお破断力 16.1 pN は **anti-EPEA / EPEA** ペアの測定値である。原著は3つの
+Nb-Ag ペアを使い分けており、分子数・拡散・分布は anti-GFP / GFP、破断力は
+anti-EPEA / EPEA で測っている。原著自身が「パラメータはペアごとに、とくに
+*F*b は変わる」と註記しているとおり、**破断力はペアの選択で変えられる設計変数**
+である。参考までに anti-GFP / GFP では AFM で 28–45 pN が報告されている
+（Klamecka et al. 2015）。
+
 ## 震盪培養での挙動
 
 散逸率 ε = 0.01 – 1 W/kg のとき、せん断速度は γ̇ = √(ε/ν) = 100 – 1000 s⁻¹。
@@ -170,13 +177,14 @@ adhesion/
   geometry.py      接触幾何。表面の求積と、架橋しうる分子の数え上げ
   model.py         発現量と局在から接着と形態を予測
   shear.py         震盪培養での衝突頻度とせん断荷重
+  kinetics.py      荷重下での結合寿命（別ペアの値による桁の見積もり）
 scripts/
   validate.py      文献値との照合表を出力
   run_scan.py      局在の掃引 → CSV
   make_figures.py  主要結果の図
   make_glossary_figure.py  用語の図解
   export_docs.py   docs/ をコードから生成
-tests/             72 件。うち検証テストが文献との整合を式レベルで固定する
+tests/             80 件。うち検証テストが文献との整合を式レベルで固定する
 docs/              自動生成されるパラメータ表と仮定一覧
 references/        BibTeX
 results/           図とデータ
@@ -187,7 +195,7 @@ results/           図とデータ
 ```bash
 pip install -r requirements.txt
 
-python3 -m unittest discover -s tests -t .   # 72 件
+python3 -m unittest discover -s tests -t .   # 80 件
 python3 scripts/validate.py                   # 文献値との照合
 python3 scripts/run_scan.py                   # 掃引 → results/data/
 python3 scripts/make_figures.py               # 図 → results/figures/
@@ -210,12 +218,23 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 このモデルは**接触した2細胞がどの配置を取るかという相対的な有利不利**を予測する。
 以下は扱っていない（仮定 A7）。
 
-- 衝突するまでの待ち時間、結合の寿命、解離速度定数
-- 凝集にかかる時間、鎖長分布の時間発展
+- 衝突するまでの待ち時間、凝集にかかる時間、鎖長分布の時間発展
 - 接触後の細胞の回転による再配置
+- 接触中の拡散によるアドヘシンの集積（仮定 A12）
 
-速度論を入れるには解離速度定数と2次元親和性が必要だが、いずれも本系では
-測定されていない。
+本系のアドヘシンペアについて解離速度定数も2次元親和性も測られていないため、
+速度論を入れても値を埋められない。
+
+ただし別のペア（anti-GFP / GFP）については解離速度定数
+*k*off = 1.45×10⁻⁴ s⁻¹ と障壁位置 Δ*x* = 1.59 nm が測られており、
+`adhesion.kinetics` で桁の目安を出せる。それによれば
+
+- 無荷重での結合寿命は **約 1.9 時間**
+- 荷重が効き始めるスケールは *kT*/Δ*x* ≈ **2.6 pN**
+- γ̇ = 300 s⁻¹ で 10 細胞の鎖にかかる 1 結合あたりの荷重は 0.046 pN であり、
+  寿命はほとんど変わらない（無荷重の 98 %）
+
+**時間を入れても力学が律速にならないという結論は変わらない見込みである。**
 
 ## 残された問い
 
@@ -252,6 +271,9 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 - Glass, D. S. & Riedel-Kruse, I. H. (2018). A Synthetic Bacterial Cell-Cell Adhesion
   Toolbox for Programming Multicellular Morphologies and Patterns.
   *Cell* **174**, 649–658. <https://doi.org/10.1016/j.cell.2018.06.041>
+- Klamecka, K., Severin, P. M., Milles, L. F., Gaub, H. E. & Leonhardt, H. (2015).
+  Energy profile of nanobody-GFP complex under force.
+  *Phys. Biol.* **12**, 056009. <https://doi.org/10.1088/1478-3975/12/5/056009>
 - Rassam, P., Copeland, N. A. et al. (2015). Supramolecular assemblies underpin
   turnover of outer membrane proteins in bacteria.
   *Nature* **523**, 333–336. <https://doi.org/10.1038/nature14461>
