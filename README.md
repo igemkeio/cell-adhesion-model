@@ -72,9 +72,22 @@ termの使い方など所々不自然なところありますが，用語集な�
 | 極接触の結合数 | 8 対 | 7 ± 2 対 | 1 SD 以内 |
 | 接触面積割合 *A*con | 0.0023 – 0.0274 | 0.002 – 0.036 | レンジ一致 |
 
-とくに *A*con が独立に一致した点が重要である。原著はこれを配置ごとの経験値として
-与えているが、本モデルは細胞形状から幾何的に導出している。**同じ量が二つの独立な
-経路から得られた**ことになる。
+さらに原著の Supplemental Note には *A*con の導出が式の形で載っているため、
+出力だけでなく**式そのものを突き合わせられる**。端 - 端接触について、
+
+| | 式 | 値 |
+|---|---|---:|
+| 原著 (S32) | *A*ee = 2π*rM* | 0.01005 µm² |
+| 本モデル | patch = π(2*M*)*r* | 0.01005 µm² |
+
+この2つは**恒等的に同じ式**である。本モデルは原著の式を参照せず細胞形状から
+独立に導出しているので、**同じ量が二つの独立な経路から得られた**ことになる。
+
+原著が 2D 投影の近似と自ら断っている配置（直交・斜め）では、本モデルは曲面上で
+直接数え上げるぶん小さい値を返す。詳細は
+**[docs/source_comparison.md](docs/source_comparison.md)** にまとめた。
+この差は結論には影響しない（極接触と側面接触の比は本モデルで 11.3、原著の値では 16 で、
+どちらでも「局在させなければ束になる」は変わらない）。
 
 検証は `tests/test_validation.py` にテストとして固定してあり、将来モデルを変更して
 文献との整合が崩れた場合はテストが失敗する。
@@ -85,6 +98,8 @@ termの使い方など所々不自然なところありますが，用語集な�
 
 - **[docs/glossary.md](docs/glossary.md)** — 用語集。先端集中幅・接触パッチ・極局在比など、
   本文と図に出てくる用語の定義、記号、コード上の名前、代表値の対応表。**最初にここを読むとよい。**
+- **[docs/source_comparison.md](docs/source_comparison.md)** — 原著の導出式との照合。
+  どこが一致し、どこがなぜ違うかを式のレベルで記録している。
 - **[docs/parameters.md](docs/parameters.md)** — 使用した文献値の一覧。
   値・単位・不確かさ・出典が対応表になっている。
 - **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 12 個の仮定。
@@ -161,7 +176,7 @@ scripts/
   make_figures.py  主要結果の図
   make_glossary_figure.py  用語の図解
   export_docs.py   docs/ をコードから生成
-tests/             60 件。うち検証テストが文献との整合を固定する
+tests/             72 件。うち検証テストが文献との整合を式レベルで固定する
 docs/              自動生成されるパラメータ表と仮定一覧
 references/        BibTeX
 results/           図とデータ
@@ -172,7 +187,7 @@ results/           図とデータ
 ```bash
 pip install -r requirements.txt
 
-python3 -m unittest discover -s tests -t .   # 60 件
+python3 -m unittest discover -s tests -t .   # 72 件
 python3 scripts/validate.py                   # 文献値との照合
 python3 scripts/run_scan.py                   # 掃引 → results/data/
 python3 scripts/make_figures.py               # 図 → results/figures/
