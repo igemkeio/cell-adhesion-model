@@ -63,10 +63,36 @@ class LiteratureValueTests(unittest.TestCase):
         self.assertIn("d_island", rassam)
         self.assertIn("D_native", rassam)
 
+    def test_values_only_come_from_fully_verified_sources(self):
+        """全文を確認していない文献から値を取っていないこと。
+
+        これが本リポジトリの基本規則である。検索結果の要約や、他論文が引用して
+        いる孫引きの数値をモデルに入れてはならない。
+        """
+        for value in lit.ALL_VALUES:
+            with self.subTest(symbol=value.symbol):
+                self.assertTrue(
+                    value.reference.full_text_verified,
+                    f"{value.symbol} の出典 {value.source} は全文未確認",
+                )
+
+    def test_every_verified_reference_records_what_was_checked(self):
+        for key, reference in lit.REFERENCES.items():
+            if reference.full_text_verified:
+                with self.subTest(reference=key):
+                    self.assertTrue(reference.verification_note)
+
+    def test_unverified_sources_supply_no_values(self):
+        unverified = [k for k, r in lit.REFERENCES.items() if not r.full_text_verified]
+        for key in unverified:
+            with self.subTest(reference=key):
+                self.assertEqual(lit.values_from(key), [])
+
     def test_no_unused_references_remain(self):
         """どの値からも参照されていない文献が残っていないこと。"""
         used = {v.source for v in lit.ALL_VALUES}
-        self.assertEqual(used, set(lit.REFERENCES) - {"glass2018"})
+        unverified = {k for k, r in lit.REFERENCES.items() if not r.full_text_verified}
+        self.assertEqual(used, set(lit.REFERENCES) - unverified)
 
     def test_island_diameter_is_comparable_to_the_polar_cap(self):
         """島の直径が極半球の測地距離と同程度であること（A11 の前提）。"""

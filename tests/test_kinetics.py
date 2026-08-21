@@ -7,16 +7,19 @@
 import unittest
 
 from adhesion import kinetics
+
+#: 参考用。出典（Kirchhofer 2010）は未確認であることを承知で使う。
+K = kinetics.UNVERIFIED_OFF_RATE_PER_S
 from adhesion.model import predict
 from adhesion.shear import chain_tension_pn
 
 
 class BellModelTests(unittest.TestCase):
     def test_zero_load_lifetime_is_about_two_hours(self):
-        self.assertAlmostEqual(kinetics.bond_lifetime_s(0.0) / 3600, 1.9, delta=0.2)
+        self.assertAlmostEqual(kinetics.bond_lifetime_s(0.0, K) / 3600, 1.9, delta=0.2)
 
     def test_lifetime_decreases_with_load(self):
-        lifetimes = [kinetics.bond_lifetime_s(f) for f in (0.0, 1.0, 5.0, 10.0)]
+        lifetimes = [kinetics.bond_lifetime_s(f, K) for f in (0.0, 1.0, 5.0, 10.0)]
         self.assertEqual(lifetimes, sorted(lifetimes, reverse=True))
 
     def test_force_scale_is_a_few_piconewtons(self):
@@ -25,7 +28,7 @@ class BellModelTests(unittest.TestCase):
 
     def test_negative_load_is_rejected(self):
         with self.assertRaises(ValueError):
-            kinetics.bond_lifetime_s(-1.0)
+            kinetics.bond_lifetime_s(-1.0, K)
 
 
 class ShearDoesNotShortenBondsTests(unittest.TestCase):
@@ -38,17 +41,17 @@ class ShearDoesNotShortenBondsTests(unittest.TestCase):
 
 class DynamicForceSpectroscopyTests(unittest.TestCase):
     def test_rupture_force_grows_with_loading_rate(self):
-        forces = [kinetics.rupture_force_pn(r) for r in (10, 100, 1000, 10000)]
+        forces = [kinetics.rupture_force_pn(r, K) for r in (10, 100, 1000, 10000)]
         self.assertEqual(forces, sorted(forces))
 
     def test_reproduces_the_published_afm_range(self):
         """Klamecka らの AFM 荷重速度域で 28-45 pN 相当になること。"""
-        self.assertAlmostEqual(kinetics.rupture_force_pn(20), 28, delta=3)
-        self.assertAlmostEqual(kinetics.rupture_force_pn(1e4), 44, delta=3)
+        self.assertAlmostEqual(kinetics.rupture_force_pn(20, K), 28, delta=3)
+        self.assertAlmostEqual(kinetics.rupture_force_pn(1e4, K), 44, delta=3)
 
     def test_invalid_loading_rate_is_rejected(self):
         with self.assertRaises(ValueError):
-            kinetics.rupture_force_pn(0.0)
+            kinetics.rupture_force_pn(0.0, K)
 
 
 if __name__ == "__main__":

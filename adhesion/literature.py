@@ -28,6 +28,10 @@ class Reference:
     doi: str
     volume: str = ""
     pages: str = ""
+    #: 全文を読んで値を照合したか。False の文献から値を取ってはならない。
+    full_text_verified: bool = False
+    #: 全文のどこまでを確認したかの記録。
+    verification_note: str = ""
 
     @property
     def short(self) -> str:
@@ -58,6 +62,8 @@ REFERENCES: dict[str, Reference] = {
         volume="7",
         pages="2125-2143",
         doi="10.1016/j.matt.2024.03.019",
+        full_text_verified=True,
+        verification_note="本文20ページと Supplemental Information（Note 1-6）を全文照合。",
     ),
     "glass2018": Reference(
         key="glass2018",
@@ -71,6 +77,11 @@ REFERENCES: dict[str, Reference] = {
         volume="174",
         pages="649-658",
         doi="10.1016/j.cell.2018.06.041",
+        full_text_verified=False,
+        verification_note=(
+            "未入手。背景として言及するのみで、値は一つも取っていない。"
+            "値を取る前に全文を確認すること。"
+        ),
     ),
     "klamecka2015": Reference(
         key="klamecka2015",
@@ -84,7 +95,14 @@ REFERENCES: dict[str, Reference] = {
         volume="12",
         pages="056009",
         doi="10.1088/1478-3975/12/5/056009",
-    ),
+            full_text_verified=True,
+        verification_note=(
+            "本文9ページを全文照合。Δx と AFM 破断力は本論文自身の測定であることを"
+            "確認した。一方 k_off と K_D は本論文の測定ではなく Kirchhofer et al. "
+            "(2010) および Kubala et al. (2010) からの引用値であり、Bell–Evans 回帰に"
+            "固定値として使われているだけなので、本論文の値としては採らない。"
+        ),
+),
     "rassam2015": Reference(
         key="rassam2015",
         authors="Rassam, Patrice and Copeland, Nicholas A. and Others",
@@ -94,6 +112,8 @@ REFERENCES: dict[str, Reference] = {
         volume="523",
         pages="333-336",
         doi="10.1038/nature14461",
+        full_text_verified=True,
+        verification_note="本文と Extended Data を全文照合。",
     ),
 }
 
@@ -258,7 +278,10 @@ SURFACE_DENSITY_AT_MAX = LiteratureValue(
     unit="分子/µm²",
     quantity="表面密度（飽和誘導時）",
     source="costan2024",
-    note="外膜タンパク全種の総密度（10⁵ /µm² のオーダー）の数%にすぎない。",
+    note=(
+        "参考までに、外膜タンパク全種の総密度は 10⁵ /µm² のオーダーとされるが、"
+        "この比較値は一次文献を確認できていない（UNVERIFIED_ESTIMATES 参照）。"
+    ),
 )
 
 PRODUCTION_RATE = LiteratureValue(
@@ -335,22 +358,6 @@ NATIVE_OMP_DIFFUSION = LiteratureValue(
     ),
 )
 
-# --------------------------------------------------------------------------
-# 結合の速度論（別ペア・別文献。寿命の桁を見積もるために使う）
-# --------------------------------------------------------------------------
-BOND_OFF_RATE = LiteratureValue(
-    symbol="k_off",
-    value=1.45e-4,
-    unit="1/s",
-    quantity="無荷重での結合解離速度定数",
-    source="klamecka2015",
-    note=(
-        "anti-GFP / 野生型 GFP ペアの値。Klamecka らは Bell–Evans 回帰の際に"
-        "この文献値を固定して使っている。破断力を測ったペア（anti-EPEA）とは"
-        "異なるので、寿命の見積もりは桁の目安として扱うこと。"
-    ),
-)
-
 BOND_BARRIER_POSITION = LiteratureValue(
     symbol="Δx",
     value=1.59,
@@ -364,13 +371,19 @@ BOND_BARRIER_POSITION = LiteratureValue(
     ),
 )
 
-BOND_DISSOCIATION_CONSTANT = LiteratureValue(
-    symbol="K_D",
-    value=1.4,
-    unit="nM",
-    quantity="ナノボディ–抗原の3次元解離定数",
+NANOBODY_RUPTURE_FORCE_WTGFP = LiteratureValue(
+    symbol="F_AFM",
+    value=45.0,
+    unit="pN",
+    quantity="anti-GFP ナノボディと野生型 GFP の破断力（AFM、範囲の上端）",
     source="klamecka2015",
-    note="anti-GFP / 野生型 GFP。eGFP では 0.59 nM。結合自由エネルギーは −25.3 kT。",
+    note=(
+        "AFM による直接測定。野生型 GFP で 28–45 pN、eGFP で 41–56 pN。"
+        "引く速度 300 nm/s–10 µm/s の範囲での最頻破断力。"
+        "Costan et al. が期待値として挙げる 28–45 pN はこの野生型の値にあたる。"
+        "本モデルは接着に anti-EPEA ペアの 16.1 pN を使っており、"
+        "この値は比較の参照としてのみ保持する。"
+    ),
 )
 
 # --------------------------------------------------------------------------
@@ -434,10 +447,20 @@ ALL_VALUES: list[LiteratureValue] = [
     REPORTED_CONTACT_FRACTION_MAX,
     OMP_ISLAND_DIAMETER,
     NATIVE_OMP_DIFFUSION,
-    BOND_OFF_RATE,
     BOND_BARRIER_POSITION,
-    BOND_DISSOCIATION_CONSTANT,
+    NANOBODY_RUPTURE_FORCE_WTGFP,
 ]
+
+
+#: 出典を確認できていない見積もり。値として使う前に必ず一次文献を確認すること。
+#: LiteratureValue にしていないのは、出典付きの実測値と混ざらないようにするため。
+UNVERIFIED_ESTIMATES: dict[str, str] = {
+    "外膜タンパクの総面密度": (
+        "10^5 /µm^2 のオーダーと述べてきたが、一次文献を確認していない。"
+        "極先端への濃縮が物理的に可能かを論じる際の比較対象に使っているため、"
+        "仮定 A11 の議論の強さはこの値に依存する。要確認。"
+    ),
+}
 
 
 def values_from(source: str) -> list[LiteratureValue]:

@@ -285,6 +285,55 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 - **誘導系**。本モデルは aTc 濃度に紐づいているが、資料が使うのは IPTG と
   プロモーター強度である
 
+## 文献の扱い方
+
+**値は全文を確認した文献からのみ取る。**検索結果の要約や、他の論文が引用している
+孫引きの数値をモデルに入れてはならない。この規則は
+`tests/test_literature.py::test_values_only_come_from_fully_verified_sources`
+で強制してあり、未確認の文献から値を取るとテストが失敗する。
+
+| 文献 | 全文確認 | 供給している値 |
+|---|---|---:|
+| Costan et al. (2024) ＋ Supplement | ✅ | 18 |
+| Rassam et al. (2015) | ✅ | 2 |
+| Klamecka et al. (2015) | ✅ | 2 |
+| Glass & Riedel-Kruse (2018) | ⚠️ 未入手 | 0（背景の言及のみ） |
+
+Klamecka については照合の結果、**当初 3 値を取っていたうち 2 値が誤りだった**。
+解離速度定数 *k*off と解離定数 *K*D は Klamecka 自身の測定ではなく、
+Kirchhofer et al. (2010) および Kubala et al. (2010) からの引用値を
+Bell–Evans 回帰に固定して使っているだけだった。両論文とも未入手のため、
+この 2 値はモデルから削除した（`adhesion/kinetics.py` では呼び出し側が
+明示的に渡す形にしてある）。
+
+### 出典を確認できていない見積もり
+
+- **外膜タンパクの総面密度（10⁵ /µm² のオーダー）** — 極先端への濃縮が物理的に
+  可能かを論じる比較対象に使っているが、一次文献を確認していない。
+  仮定 A11 の議論の強さはこの値に依存する。`literature.UNVERIFIED_ESTIMATES` に
+  明示してある
+
+### 全文未確認のまま書いた文書
+
+- **[docs/localization_feasibility.md](docs/localization_feasibility.md)** —
+  検索結果の要約のみに基づく。**モデルには取り込んでいない。**
+  IcsA の極局在、アミダーゼ欠損による鎖形成、intimin の一様分布などは
+  すべてこの状態にある
+
+## 読むべき文献
+
+現時点で入手・全文確認が必要なもの。優先度順。
+
+| 優先 | 文献 | 何のために |
+|---|---|---|
+| 高 | **Lim & Bernhardt (2019) Mol. Microbiol.**（POLAR 系） | 本設計の中核であるペリプラズム CoilR–CoilE 係留の原典。係留がどれだけ極に絞れるか（`tip_width_um`）の唯一の手掛かり |
+| 高 | **Lin et al. (2021) Nat. Commun.**（PopZ） | 発現量で単極/両極が切り替わる条件。実験①の設計根拠であり、`polar_split` の実測値に相当する |
+| 高 | **Glass & Riedel-Kruse (2018) Cell** | アドヘシン・ツールボックスの原典。鎖ができた前例があるか、intimin 構築の詳細（架橋長 8 nm の内訳） |
+| 中 | **Rassam の島構造を裏づける外膜密度の一次文献** | 上記 UNVERIFIED_ESTIMATES を解消するため |
+| 中 | **Kirchhofer et al. (2010) Nat. Struct. Mol. Biol.** | 削除した *k*off と *K*D の原典。結合寿命の議論を復活させたい場合に必要 |
+| 低 | **Leo et al. (2016) JBC** / **Oberhettinger et al. (2012) PLoS ONE** | LysM 除去と CoilE 付与の妥当性（実験⑤の根拠） |
+| 低 | Salema et al. (2013)、Spector et al. (2010) | Costan が期待値の比較に使っている文献。モデルは変わらない |
+
 ## 引用文献
 
 - Costan, S. A., Ryan, P. M., Kim, H., Wolgemuth, C. W. & Riedel-Kruse, I. H. (2024). Biophysical characterization of synthetic
