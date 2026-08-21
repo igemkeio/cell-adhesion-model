@@ -21,7 +21,40 @@ N_MID = float(lit.ADHESINS_AT_MID_INDUCTION)
 class MorphologyTests(unittest.TestCase):
     def test_tip_focused_bipolar_localization_gives_chains(self):
         result = predict(N_MID, 0.95, 0.5, tip_width_um=0.10)
+        self.assertTrue(result.morphology.forms_a_chain)
+
+    def test_distinct_adhesins_per_pole_give_a_directed_chain(self):
+        """設計どおり Ag 極と Nb 極を分けると、鎖は頭-尾に揃って向きを持つ。"""
+        result = predict(N_MID, 0.95, 0.5, tip_width_um=0.10)
+        self.assertEqual(result.morphology, Morphology.DIRECTED_CHAIN)
+        self.assertTrue(result.morphology.is_directed)
+
+    def test_same_adhesin_on_both_poles_gives_an_undirected_chain(self):
+        """同種を両極に置くと鎖にはなるが向きは揃わない。"""
+        result = predict(
+            N_MID, 0.95, 0.5, tip_width_um=0.10, distinct_adhesins_per_pole=False
+        )
         self.assertEqual(result.morphology, Morphology.CHAIN)
+        self.assertFalse(result.morphology.is_directed)
+
+    def test_pole_separation_does_not_change_bond_counts(self):
+        """Ag/Nb を分けても結合数は変わらない。変わるのは繋がり方だけ。"""
+        directed = predict(N_MID, 0.95, 0.5, tip_width_um=0.10)
+        plain = predict(
+            N_MID, 0.95, 0.5, tip_width_um=0.10, distinct_adhesins_per_pole=False
+        )
+        self.assertAlmostEqual(
+            directed.bonds_heavy_pole, plain.bonds_heavy_pole, places=9
+        )
+        self.assertAlmostEqual(
+            directed.bonds_side_by_side, plain.bonds_side_by_side, places=9
+        )
+
+    def test_direction_requires_both_poles(self):
+        """単極では向きのある鎖にならない（二量体で止まる）。"""
+        result = predict(N_MID, 0.95, 1.0, tip_width_um=0.10)
+        self.assertEqual(result.morphology, Morphology.DIMER)
+        self.assertFalse(result.morphology.forms_a_chain)
 
     def test_polar_enrichment_alone_is_not_enough(self):
         """極半球に広く集めるだけでは束のまま。先端に絞る必要がある。"""
@@ -47,7 +80,7 @@ class MorphologyTests(unittest.TestCase):
     def test_asymmetric_split_can_still_form_chains(self):
         """薄い側の極にも十分な分子が残っていれば鎖になる。"""
         result = predict(N_MID, 0.95, 0.75, tip_width_um=0.10)
-        self.assertEqual(result.morphology, Morphology.CHAIN)
+        self.assertTrue(result.morphology.forms_a_chain)
         self.assertGreater(result.bonds_heavy_pole, result.bonds_light_pole)
 
 
@@ -62,7 +95,7 @@ class ParameterSeparationTests(unittest.TestCase):
                 below = predict(n_total, threshold - 0.05, 0.5, 0.20)
                 above = predict(n_total, threshold + 0.05, 0.5, 0.20)
                 self.assertEqual(below.morphology, Morphology.BUNDLE)
-                self.assertEqual(above.morphology, Morphology.CHAIN)
+                self.assertTrue(above.morphology.forms_a_chain)
 
     def test_bond_count_is_linear_in_expression(self):
         single = predict(5000.0, 0.95, 0.5, 0.10)

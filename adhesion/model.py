@@ -61,12 +61,27 @@ def cell_surface(n_points: int = 20000) -> SurfaceQuadrature:
 
 
 class Morphology(Enum):
-    """接着した細胞が作る多細胞構造。"""
+    """接着した細胞が作る多細胞構造。
+
+    設計では2つの極に別種のアドヘシン（Ag と Nb）を置くため、Ag 極は Nb 極と
+    しか結合できない。したがって鎖ができるときは必ず頭-尾に揃い、向きを持つ。
+    同種のアドヘシンを両極に置いた場合は、どちらの極どうしでも結合できるので
+    鎖はできるが向きは揃わない。両者を区別する。
+    """
 
     NO_ADHESION = "接着しない"
     BUNDLE = "束"
     DIMER = "二量体どまり"
-    CHAIN = "鎖"
+    CHAIN = "鎖（向きなし）"
+    DIRECTED_CHAIN = "鎖（向きあり）"
+
+    @property
+    def forms_a_chain(self) -> bool:
+        return self in (Morphology.CHAIN, Morphology.DIRECTED_CHAIN)
+
+    @property
+    def is_directed(self) -> bool:
+        return self is Morphology.DIRECTED_CHAIN
 
     def __str__(self) -> str:
         return self.value
@@ -85,6 +100,8 @@ class AdhesionPrediction:
     bonds_heavy_pole: float
     bonds_light_pole: float
     peak_density_per_um2: float
+    #: 2つの極に別種のアドヘシンを置くか。設計（Ag 極 / Nb 極）では True。
+    distinct_adhesins_per_pole: bool = True
 
     @property
     def morphology(self) -> Morphology:
@@ -100,6 +117,8 @@ class AdhesionPrediction:
             return Morphology.BUNDLE
         if self.bonds_light_pole < MIN_BONDS_FOR_CONTACT:
             return Morphology.DIMER
+        if self.distinct_adhesins_per_pole:
+            return Morphology.DIRECTED_CHAIN
         return Morphology.CHAIN
 
     @property
@@ -164,13 +183,23 @@ def predict(
     polar_split: float = 0.5,
     tip_width_um: float | None = None,
     n_points: int = 20000,
+    distinct_adhesins_per_pole: bool = True,
 ) -> AdhesionPrediction:
     """接着の予測を返す。
 
-    n_total       細胞あたりのアドヘシン数
+    n_total       細胞あたりのアドヘシン数（Ag と Nb の合計）
     f_pole        両極に置く割合。既定は一様分布（A10）
     polar_split   極分子の左右分配。0.5 で対称、1.0 で単極
     tip_width_um  極先端へのガウス集中幅（A6）。None なら半球に一様
+
+    distinct_adhesins_per_pole
+        2つの極に別種のアドヘシンを置くか。設計（PopZ 極に Ag、DivIVA 極に Nb）
+        では True。この場合 Ag 極は Nb 極としか結合できないため、できる鎖は
+        頭-尾に揃って向きを持つ。
+
+        結合数そのものは変わらない。Ag と Nb を等量発現させれば、接合あたりの
+        結合数は min(n_Ag, n_Nb) = N·f_pole/2 となり、同種を両極に置いた場合と
+        一致するためである。変わるのは、どの極とどの極が結合できるかである。
     """
 
     if not 0.5 <= polar_split <= 1.0:
@@ -195,6 +224,7 @@ def predict(
         bonds_heavy_pole=_pole_contact_bonds(surface, on_heavy, tip_width_um),
         bonds_light_pole=_pole_contact_bonds(surface, on_light, tip_width_um),
         peak_density_per_um2=_peak_density(n_total, f_pole, polar_split, tip_width_um),
+        distinct_adhesins_per_pole=distinct_adhesins_per_pole,
     )
 
 
