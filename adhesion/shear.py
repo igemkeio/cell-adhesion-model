@@ -88,6 +88,43 @@ def load_per_bond_pn(n_cells: int, shear_rate_per_s: float, n_bonds: float) -> f
     return chain_tension_pn(n_cells, shear_rate_per_s) / n_bonds
 
 
+def contact_duration_s(shear_rate_per_s: float) -> float:
+    """せん断中の2細胞が擦れ違うまでの接触持続時間（s）。
+
+    せん断場では相対速度が勾配で決まるため、接触は概ね 1/γ̇ の時間で終わる。
+    これを結合形成にかかる時間と比べると、その衝突で結合ができるかが分かる。
+    """
+
+    if shear_rate_per_s <= 0:
+        return math.inf
+    return 1.0 / shear_rate_per_s
+
+
+def reorientation_during_contact_deg(
+    shear_rate_per_s: float,
+    rotational_diffusion_rad2_s: float = 0.889,
+) -> float:
+    """接触している間に熱運動で向きを変えられる角度（度）。
+
+    √(2 D_rot t) を接触時間 t = 1/γ̇ について評価する。回転拡散係数の既定値は
+    細胞と同体積の球に対する kT/(8πηa³) で、桁の見積もりである。
+    """
+
+    return math.degrees(
+        math.sqrt(2 * rotational_diffusion_rad2_s * contact_duration_s(shear_rate_per_s))
+    )
+
+
+def thermal_force_scale_pn(barrier_position_nm: float = 1.59) -> float:
+    """熱ゆらぎが結合に与える力のスケール kT/Δx（pN）。
+
+    結合1本にかかる力がこれより十分小さければ、その力は熱ゆらぎに埋もれる。
+    既定の障壁位置は anti-GFP / GFP ペアの測定値（Klamecka et al. 2015）。
+    """
+
+    return THERMAL_ENERGY_J / (barrier_position_nm * 1e-9) * 1e12
+
+
 def collision_rate_per_s(
     shear_rate_per_s: float,
     cell_concentration_per_ml: float,

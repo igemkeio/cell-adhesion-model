@@ -146,5 +146,42 @@ class DensityTests(unittest.TestCase):
         self.assertGreater(result.peak_density_per_um2, 1e5)
 
 
+class ShearVersusBrownianTests(unittest.TestCase):
+    """震盪のせん断と熱運動、どちらが効くかは「何を比べるか」で逆転する。"""
+
+    def test_shear_dominates_transport(self):
+        """輸送・衝突ではせん断が圧倒的に優勢。"""
+        from adhesion.shear import shear_to_brownian_ratio
+
+        self.assertGreater(shear_to_brownian_ratio(300), 10)
+
+    def test_thermal_force_dominates_at_the_single_bond_level(self):
+        """1結合が感じる力としては、熱ゆらぎのほうがずっと大きい。"""
+        from adhesion.shear import chain_tension_pn, thermal_force_scale_pn
+
+        result = predict(N_MID, 0.95, 0.5, tip_width_um=0.10)
+        load = chain_tension_pn(10, 300) / result.bonds_heavy_pole
+        self.assertLess(load, thermal_force_scale_pn() / 10)
+
+    def test_contact_becomes_too_short_at_typical_shaking(self):
+        """典型的な震盪では、接触時間が結合形成の時間より短くなる。"""
+        from adhesion.shear import contact_duration_s
+
+        half_time = float(lit.BOND_FORMATION_HALF_TIME)
+        self.assertGreater(contact_duration_s(10), half_time * 0.9)
+        self.assertLess(contact_duration_s(300), half_time)
+
+    def test_reorientation_shrinks_with_shear(self):
+        """せん断が強いほど、接触中に向きを直す余地がなくなる。"""
+        from adhesion.shear import reorientation_during_contact_deg
+
+        self.assertGreater(reorientation_during_contact_deg(10), 20)
+        self.assertLess(reorientation_during_contact_deg(300), 10)
+
+    def test_bonds_do_not_spontaneously_break(self):
+        """原著は k_off をゼロとみなすのが最良の推定としている。"""
+        self.assertEqual(float(lit.SPONTANEOUS_OFF_RATE), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

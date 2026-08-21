@@ -280,6 +280,32 @@ DECAY_RATE = LiteratureValue(
     note="大半は細胞分裂による希釈（0.82 ± 0.30 /h）。分解自体は 0.05 ± 0.01 /h と遅い。",
 )
 
+BOND_FORMATION_HALF_TIME = LiteratureValue(
+    symbol="t_0.5",
+    value=0.1,
+    unit="s",
+    quantity="結合が形成される半減時間",
+    source="costan2024",
+    note=(
+        "測定は装置の時間分解能（1 s）に阻まれ、上限 t_0.5 < 1 s しか決まっていない。"
+        "原著は「典型的な on-rate は 100 ms のオーダーと予想される」と述べており、"
+        "ここではその予想値を採る。桁の見積もりとして扱うこと。"
+    ),
+)
+
+SPONTANEOUS_OFF_RATE = LiteratureValue(
+    symbol="k_off",
+    value=0.0,
+    unit="1/s",
+    quantity="荷重なしでの自発的な解離速度",
+    source="costan2024",
+    note=(
+        "荷重速度に対する破断力の傾きが有意に 0 と異ならず、原著は「k_off はゼロと"
+        "みなすのが最良の推定であり、アドヘシンは自発的には外れない」と結論している。"
+        "したがって接着は事実上不可逆で、律速は形成の側にある。"
+    ),
+)
+
 # --------------------------------------------------------------------------
 # 外膜そのものの性質（別文献。モデルの制約を評価するために使う）
 # --------------------------------------------------------------------------
@@ -395,6 +421,8 @@ ALL_VALUES: list[LiteratureValue] = [
     MEMBRANE_DIFFUSION,
     MOBILE_FRACTION,
     COPY_NUMBER_CORRECTION,
+    BOND_FORMATION_HALF_TIME,
+    SPONTANEOUS_OFF_RATE,
     ADHESINS_AT_MID_INDUCTION,
     ADHESINS_AT_MAX_INDUCTION,
     SURFACE_DENSITY_AT_MAX,
