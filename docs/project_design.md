@@ -1,7 +1,5 @@
 # プロジェクトの設計 — モデルが何を対象にしているか
 
-出典: iGEM Keio × iGEM Waseda 合同ミートアップ資料「One Direction」
-（Keio-Japan 2026）。本モデルはこの設計を対象とする。
 
 ## 大目標
 
