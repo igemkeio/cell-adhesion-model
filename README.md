@@ -96,6 +96,8 @@ termの使い方など所々不自然なところありますが，用語集な�
 
 科学的な再現性のため、この2つは明示的に分離して管理している。
 
+- **[docs/literature_findings.md](docs/literature_findings.md)** — 一次文献8本の全文照合で分かったこと。
+  **設計に直接効く発見を含む。まずここを読むとよい。**
 - **[docs/project_design.md](docs/project_design.md)** — 本モデルが対象にしている設計（「One Direction」）と、
   接着機構（ペリプラズムでの CoilR–CoilE 係留）の説明。**最初にここを読むとよい。**
 - **[docs/model_scope_audit.md](docs/model_scope_audit.md)** — モデルが設計資料に沿っているかの監査。
@@ -107,7 +109,7 @@ termの使い方など所々不自然なところありますが，用語集な�
   どこが一致し、どこがなぜ違うかを式のレベルで記録している。
 - **[docs/parameters.md](docs/parameters.md)** — 使用した文献値の一覧。
   値・単位・不確かさ・出典が対応表になっている。
-- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 13 個の仮定。
+- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 14 個の仮定。
   各仮定について、そう置いた根拠と、**もし破れていたら結果がどう変わるか**を併記。
 
 どちらも `adhesion/literature.py` と `adhesion/assumptions.py` から自動生成される
@@ -297,7 +299,10 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 | Costan et al. (2024) ＋ Supplement | ✅ | 18 |
 | Rassam et al. (2015) | ✅ | 2 |
 | Klamecka et al. (2015) | ✅ | 2 |
-| Glass & Riedel-Kruse (2018) | ⚠️ 未入手 | 0（背景の言及のみ） |
+| Glass & Riedel-Kruse (2018) | ✅ | 0（機構の確認に使用） |
+| Lim & Bernhardt (2019) | ✅ | 0（同上） |
+| Lin et al. (2021) | ✅ | 0（同上） |
+| Chou et al. (2025) | ✅ | 0（同上） |
 
 Klamecka については照合の結果、**当初 3 値を取っていたうち 2 値が誤りだった**。
 解離速度定数 *k*off と解離定数 *K*D は Klamecka 自身の測定ではなく、

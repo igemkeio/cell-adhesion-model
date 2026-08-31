@@ -281,6 +281,27 @@ A13_BRIDGE_MUCH_SMALLER_THAN_CAP = Assumption(
 )
 
 
+A14_TETHERING_WORKS_FOR_BETA_BARRELS = Assumption(
+    id="A14",
+    statement=(
+        "ペリプラズムでの係留により、βバレル外膜タンパクを極へ集められるとする。"
+    ),
+    rationale=(
+        "Lim & Bernhardt (2019) は内膜に固定した融合体がペリプラズムの相手を極へ"
+        "引き寄せること（POLAR）を実証しており、CoilE/CoilR の組でも成立している。"
+    ),
+    impact=(
+        "ただし同論文が外膜側で試したのはリポタンパク（LpoP）であって、βバレル"
+        "外膜タンパクではない（本文に β-barrel の語が一度も現れない）。Intimin は"
+        "βバレルで外膜に埋め込まれ、島構造に閉じ込められている（Rassam 2015）。"
+        "リポタンパクを引き寄せられることは、βバレルを引き寄せられることを"
+        "意味しない。この仮定が破れれば局在そのものが成立せず、本モデルの入力が"
+        "得られない。資料の実験⑥（係留 vs 全長発現）がこれを直接確かめる実験にあたる。"
+    ),
+    status=Status.UNTESTED,
+)
+
+
 ALL_ASSUMPTIONS: list[Assumption] = [
     A1_RIGID_SPHEROCYLINDER,
     A2_BRIDGE_IS_TOTAL_GAP,
@@ -295,6 +316,7 @@ ALL_ASSUMPTIONS: list[Assumption] = [
     A11_ISLAND_CONFINEMENT,
     A12_STATIC_DISTRIBUTION,
     A13_BRIDGE_MUCH_SMALLER_THAN_CAP,
+    A14_TETHERING_WORKS_FOR_BETA_BARRELS,
 ]
 
 BY_ID: dict[str, Assumption] = {item.id: item for item in ALL_ASSUMPTIONS}

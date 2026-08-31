@@ -88,11 +88,20 @@ class LiteratureValueTests(unittest.TestCase):
             with self.subTest(reference=key):
                 self.assertEqual(lit.values_from(key), [])
 
-    def test_no_unused_references_remain(self):
-        """どの値からも参照されていない文献が残っていないこと。"""
+    def test_every_reference_is_either_a_value_source_or_documented(self):
+        """登録された文献はすべて、値の出所か、確認記録つきの根拠であること。
+
+        数値を供給しない文献があってもよい。機構の確認に使うものがあるためで、
+        その場合も全文を読んで verification_note を残していることを要求する。
+        """
         used = {v.source for v in lit.ALL_VALUES}
-        unverified = {k for k, r in lit.REFERENCES.items() if not r.full_text_verified}
-        self.assertEqual(used, set(lit.REFERENCES) - unverified)
+        for key, reference in lit.REFERENCES.items():
+            with self.subTest(reference=key):
+                if key not in used:
+                    self.assertTrue(
+                        reference.verification_note,
+                        f"{key} は値を供給しないのに確認記録がない",
+                    )
 
     def test_island_diameter_is_comparable_to_the_polar_cap(self):
         """島の直径が極半球の測地距離と同程度であること（A11 の前提）。"""

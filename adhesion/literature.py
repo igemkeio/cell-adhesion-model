@@ -77,10 +77,75 @@ REFERENCES: dict[str, Reference] = {
         volume="174",
         pages="649-658",
         doi="10.1016/j.cell.2018.06.041",
-        full_text_verified=False,
+        full_text_verified=True,
         verification_note=(
-            "未入手。背景として言及するのみで、値は一つも取っていない。"
-            "値を取る前に全文を確認すること。"
+            "本文27ページを全文照合。アドヘシンが外膜に等方的に分布すること、"
+            "および著者ら自身が「局在させれば線状の鎖やシートを作れる」と"
+            "今後の方向として述べていることを確認した。"
+        ),
+    ),
+    "lim2019": Reference(
+        key="lim2019",
+        authors="Lim, Hoong Chuin and Bernhardt, Thomas G.",
+        title=(
+            "A PopZ-linked apical recruitment assay for studying protein-protein "
+            "interactions in the bacterial cell envelope"
+        ),
+        journal="Molecular Microbiology",
+        year=2019,
+        volume="112",
+        pages="1757-1768",
+        doi="10.1111/mmi.14391",
+        full_text_verified=True,
+        verification_note=(
+            "本文12ページを全文照合。POLAR は PopZ-Linked Apical Recruitment の略。"
+            "CoilE/CoilR の組で極リクルートが成立することを確認した。ただし外膜側で"
+            "試されているのはリポタンパク（LpoP）であって、βバレル外膜タンパクでは"
+            "ない（β-barrel の語が本文に一度も現れない）。極の広がりの定量値もない。"
+        ),
+    ),
+    "lin2021": Reference(
+        key="lin2021",
+        authors=(
+            "Lin, Da-Wei and Liu, Yang and Lee, Yue-Qi and Yang, Po-Jiun and "
+            "Ho, Chia-Tse and Hong, Jui-Chung and Hsiao, Jye-Chian and Others"
+        ),
+        title=(
+            "Construction of intracellular asymmetry and asymmetric division "
+            "in Escherichia coli"
+        ),
+        journal="Nature Communications",
+        year=2021,
+        volume="12",
+        pages="888",
+        doi="10.1038/s41467-021-21135-1",
+        full_text_verified=True,
+        verification_note=(
+            "本文11ページを全文照合。中程度の Anderson プロモーター J23116 で"
+            "極性の指標が最大になること、強いプロモーターで単極から両極へ切り替わること、"
+            "PopZ は単極・DivIVA は両極であり PopZ は DivIVA を排除しないことを確認した。"
+        ),
+    ),
+    "chou2025": Reference(
+        key="chou2025",
+        authors=(
+            "Chou, Tsung-Wei and Huang, Ing-Jen and Hsu, Ya-Chu and Wu, Szu-Hua and "
+            "Hong, Jui-Chung and Ko, Yu-Hao and Su, Ting-Ran and Jiang, Jie-Hong Roland "
+            "and Huang, Hsiao-Chun"
+        ),
+        title=(
+            "Construction and phenotypic classification of synthetic dual-pole "
+            "Escherichia coli cells"
+        ),
+        journal="Communications Biology",
+        year=2025,
+        volume="8",
+        pages="",
+        doi="10.1038/s42003-025-08495-w",
+        full_text_verified=True,
+        verification_note=(
+            "本文11ページを全文照合。PodJ 断片を第2の足場とし、PodJ 凝集の負の制御因子"
+            "SpmX を PopZ とキメラにすることで、PopZ と PodJ を反対の極に閉じ込めている。"
         ),
     ),
     "klamecka2015": Reference(

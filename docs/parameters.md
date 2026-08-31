@@ -46,8 +46,11 @@
 
 - Costan, Stefana A. and Ryan, Paul M. and Kim, Honesty and Wolgemuth, Charles W. and Riedel-Kruse, Ingmar H. (2024). Biophysical characterization of synthetic adhesins for predicting and tuning engineered living material properties. *Matter **7**, 2125-2143*. <https://doi.org/10.1016/j.matt.2024.03.019>
 - Glass, David S. and Riedel-Kruse, Ingmar H. (2018). A Synthetic Bacterial Cell-Cell Adhesion Toolbox for Programming Multicellular Morphologies and Patterns. *Cell **174**, 649-658*. <https://doi.org/10.1016/j.cell.2018.06.041>
+- Lim, Hoong Chuin and Bernhardt, Thomas G. (2019). A PopZ-linked apical recruitment assay for studying protein-protein interactions in the bacterial cell envelope. *Molecular Microbiology **112**, 1757-1768*. <https://doi.org/10.1111/mmi.14391>
+- Lin, Da-Wei and Liu, Yang and Lee, Yue-Qi and Yang, Po-Jiun and Ho, Chia-Tse and Hong, Jui-Chung and Hsiao, Jye-Chian and Others (2021). Construction of intracellular asymmetry and asymmetric division in Escherichia coli. *Nature Communications **12**, 888*. <https://doi.org/10.1038/s41467-021-21135-1>
+- Chou, Tsung-Wei and Huang, Ing-Jen and Hsu, Ya-Chu and Wu, Szu-Hua and Hong, Jui-Chung and Ko, Yu-Hao and Su, Ting-Ran and Jiang, Jie-Hong Roland and Huang, Hsiao-Chun (2025). Construction and phenotypic classification of synthetic dual-pole Escherichia coli cells. *Communications Biology **8***. <https://doi.org/10.1038/s42003-025-08495-w>
 - Klamecka, Kamila and Severin, Philip M. and Milles, Lukas F. and Gaub, Hermann E. and Leonhardt, Heinrich (2015). Energy profile of nanobody-GFP complex under force. *Physical Biology **12**, 056009*. <https://doi.org/10.1088/1478-3975/12/5/056009>
 - Rassam, Patrice and Copeland, Nicholas A. and Others (2015). Supramolecular assemblies underpin turnover of outer membrane proteins in bacteria. *Nature **523**, 333-336*. <https://doi.org/10.1038/nature14461>
 
 ---
-生成日: 2026-08-21
+生成日: 2026-08-31
