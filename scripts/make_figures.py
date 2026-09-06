@@ -133,7 +133,7 @@ def panel_morphology_map(axes, figure) -> None:
         )
 
     axes.set_xlabel("極局在比  f_pole")
-    axes.set_ylabel("先端集中幅  w (µm)")
+    axes.set_ylabel("先端集中度  w (µm)")
     axes.set_title("B  形態マップ（黒線 = 鎖と束の境界）", loc="left", fontsize=11)
     axes.text(0.62, 0.12, "鎖 chain", fontsize=11, color="#1B5E20", weight="bold")
     axes.text(0.52, 0.44, "束 bundle", fontsize=11, color="#4A148C", weight="bold")
