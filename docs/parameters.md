@@ -5,7 +5,7 @@
 モデルが使う物理定数の一覧。すべて `adhesion/literature.py` で出典と一体で
 定義されており、コード中に数値を直書きしている箇所はない。
 
-内訳はCostan et al. (2024) から 18 件、Klamecka et al. (2015) から 2 件、Rassam et al. (2015) から 2 件。
+内訳はCostan et al. (2024) から 18 件、Klamecka et al. (2015) から 2 件、Rassam et al. (2015) から 2 件、Berg et al. (1972) から 4 件。
 
 | 記号 | 量 | 値 | 出典 | 備考 |
 |---|---|---:|---|---|
@@ -18,6 +18,10 @@
 | `f_p` | プラスミドコピー数の非対称に対する補正係数 | 0.50 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | ナノボディ側は中コピー数プラスミド（20–30 コピー）、抗原側は低コピー数プラスミド（10–12 コピー）に載っている。抗原の数が約半分で結合数の律速になるため、著者らは総分子数を 0.5 倍して結合ペア数を見積もっている。「幾何的に届く分子のうち結合する割合」ではないことに注意。 |
 | `t_0.5` | 結合が形成される半減時間 | 0.10 s | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 測定は装置の時間分解能（1 s）に阻まれ、上限 t_0.5 < 1 s しか決まっていない。原著は「典型的な on-rate は 100 ms のオーダーと予想される」と述べており、ここではその予想値を採る。桁の見積もりとして扱うこと。 |
 | `k_off` | 荷重なしでの自発的な解離速度 | 0.00 1/s | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 荷重速度に対する破断力の傾きが有意に 0 と異ならず、Costan et al. は「k_off はゼロとみなすのが最良の推定であり、アドヘシンは自発的には外れない」と結論している。Glass & Riedel-Kruse (2018) も自分たちが作った凝集体を「essentially static（本質的に静的）」と呼び、動的で可逆な接着を得るには競合阻害剤の分泌や intimin 特異的プロテアーゼを別途組み込む必要がある、と述べている。したがって接着は自発的には不可逆である。ただし力学的には可逆で、光ピンセットでは結合と解離を繰り返し起こせる。 |
+| `v_swim` | run（直進遊泳）中の速度 | 14.2 ± 3.4 µm/s | [Berg et al. (1972)](https://doi.org/10.1038/239500a0) | 野生株 AW405（E. coli K12）の等方的な溶液（勾配なし）での値（Table 1）。個々の追跡例では 21.2 µm/s（Fig. 1）、非走化性変異株 cheC497 では20.0±4.9 µm/s も報告されており、10–35 µm/s 程度の幅がある。本モデルで使う MG1655 とは別の K12 系統での測定である。 |
+| `t_run` | run（直進遊泳）相の平均継続時間 | 0.86 ± 1.18 s | [Berg et al. (1972)](https://doi.org/10.1038/239500a0) | 野生株 AW405 の値（Table 1）。run・twiddle の終了確率は単位時間あたり一定（ポアソン過程）であることが自己相関関数の計算から確認されている。不確かさが平均値より大きいのは指数分布そのものの性質（標準偏差 = 平均）であり、測定誤差ではない。 |
+| `t_twiddle` | twiddle（原著の用語。本モデルでは tumble と呼ぶ）相の平均継続時間 | 0.14 ± 0.19 s | [Berg et al. (1972)](https://doi.org/10.1038/239500a0) | 野生株 AW405 の値（Table 1）。run と同じくポアソン過程・指数分布。 |
+| `theta_turn` | tumble（原著の twiddle）前後での方向転換角度 | 68.0 ± 36.0 度 | [Berg et al. (1972)](https://doi.org/10.1038/239500a0) | 野生株 AW405、1,166 イベントの分布（Fig. 3）。3次元追跡での値であり、完全にランダムな方向転換なら平均90°・標準偏差39.2°になるところ、小さい角度に偏った分布（skewed toward small angles）である。本モデルは平面内（2次元）の運動を扱うため、この3次元の値をそのまま平均値として転用している。分布の形も、原著の非一様な形を平均・標準偏差が一致するガンマ分布で近似する（A25）。 |
 | `N_100` | アドヘシン数（100 ng/mL aTc 誘導時） | 7,300 ± 1,800 分子/細胞 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | anti-GFP / GFP ペアでの測定。 |
 | `N_300` | アドヘシン数（300 ng/mL aTc、飽和誘導時） | 15,300 ± 4,100 分子/細胞 | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | anti-GFP / GFP ペアでの測定（n = 20 細胞）。 |
 | `σ_300` | 表面密度（飽和誘導時） | 3,400 ± 1,200 分子/µm² | [Costan et al. (2024)](https://doi.org/10.1016/j.matt.2024.03.019) | 参考までに、外膜タンパク全種の総密度は 10⁵ /µm² のオーダーとされるが、この比較値は一次文献を確認できていない（UNVERIFIED_ESTIMATES 参照）。 |
@@ -51,6 +55,7 @@
 - Chou, Tsung-Wei and Huang, Ing-Jen and Hsu, Ya-Chu and Wu, Szu-Hua and Hong, Jui-Chung and Ko, Yu-Hao and Su, Ting-Ran and Jiang, Jie-Hong Roland and Huang, Hsiao-Chun (2025). Construction and phenotypic classification of synthetic dual-pole Escherichia coli cells. *Communications Biology **8***. <https://doi.org/10.1038/s42003-025-08495-w>
 - Klamecka, Kamila and Severin, Philip M. and Milles, Lukas F. and Gaub, Hermann E. and Leonhardt, Heinrich (2015). Energy profile of nanobody-GFP complex under force. *Physical Biology **12**, 056009*. <https://doi.org/10.1088/1478-3975/12/5/056009>
 - Rassam, Patrice and Copeland, Nicholas A. and Others (2015). Supramolecular assemblies underpin turnover of outer membrane proteins in bacteria. *Nature **523**, 333-336*. <https://doi.org/10.1038/nature14461>
+- Berg, Howard C. and Brown, Douglas A. (1972). Chemotaxis in Escherichia coli analysed by Three-dimensional Tracking. *Nature **239**, 500-504*. <https://doi.org/10.1038/239500a0>
 
 ---
 生成日: 2026-09-13

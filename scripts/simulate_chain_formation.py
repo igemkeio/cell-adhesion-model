@@ -385,6 +385,31 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--swim-speed-um-s",
+        type=float,
+        default=0.0,
+        help=(
+            "遊泳速度（µm/s）。既定 0 は能動運動なし（受動拡散のみ）。正の値に"
+            "すると、結合していない自由な細胞は run-and-tumble 運動をする"
+            "（A25）。使用株 MG1655 は運動性を持つが、既定の速度・run/tumble"
+            "時間・旋回角度は Berg & Brown (1972) の野生株 AW405 の値（全文"
+            "照合済み）で、別の K12 系統・別の測定条件でのもの。目安は"
+            "~14.2 µm/s。"
+        ),
+    )
+    parser.add_argument(
+        "--mean-run-time-s", type=float, default=0.86,
+        help="run 相の平均継続時間（秒）。既定 0.86（Berg & Brown 1972、全文照合済み）。",
+    )
+    parser.add_argument(
+        "--mean-tumble-time-s", type=float, default=0.14,
+        help="tumble 相の平均継続時間（秒）。既定 0.14（同上）。",
+    )
+    parser.add_argument(
+        "--tumble-turn-angle-deg", type=float, default=68.0,
+        help="tumble で向きを変える角度の平均（度）。既定 68.0（同上）。",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -404,6 +429,10 @@ def main() -> None:
         well_depth_um=args.well_depth_um,
         supernatant_fraction=args.supernatant_fraction,
         k_off_per_s=args.k_off_per_s,
+        swim_speed_um_s=args.swim_speed_um_s,
+        mean_run_time_s=args.mean_run_time_s,
+        mean_tumble_time_s=args.mean_tumble_time_s,
+        tumble_turn_angle_deg=args.tumble_turn_angle_deg,
         **overrides,
     )
 
@@ -426,6 +455,14 @@ def main() -> None:
             f"（実際の凝集アッセイに対応、震盪なし・静置）。"
             f"単量体の沈降速度={dyn._settling_velocity_um_s(1):.4f} µm/s、"
             f"20細胞の凝集塊={dyn._settling_velocity_um_s(20):.4f} µm/s。"
+        )
+    if config.motile:
+        effective_dt_m = dyn._safe_dt_for_motility(config)
+        print(
+            f"運動性モード: swim_speed_um_s={config.swim_speed_um_s:.1f}（A25、"
+            f"Berg & Brown 1972・野生株 AW405 の値、全文照合済み。ただし別の"
+            f"K12系統・別の測定条件でのもの）。"
+            f"dt を {effective_dt_m:.2e} s に自動調整。"
         )
     result = dyn.run(config)
     print(

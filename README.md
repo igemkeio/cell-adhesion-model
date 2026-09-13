@@ -40,7 +40,7 @@ python3 scripts/simulate_chain_formation.py --scenario uniform  # 実測の一�
 「不可逆」自体の生物学的な妥当性には限界があり、下の沈降モードの節で扱う。
 母集団の密度・視野サイズ・総シミュレーション時間は較正できる経時データが
 文献にないため、「動画として見やすい」という基準で選んだ自由パラメータで
-ある。詳細な設計と置いた仮定（A15–A24）は `adhesion/dynamics.py` の
+ある。詳細な設計と置いた仮定（A15–A25）は `adhesion/dynamics.py` の
 docstring と `docs/assumptions.md` を参照。
 
 ### 震盪モード（`--shear-rate-per-s`）は実際のアッセイの条件ではない
@@ -116,6 +116,39 @@ k_off が数学的に厳密なゼロだと証明したものではない。し�
 範囲にあれば、24時間で半減期を100回以上経ることになり、束から鎖への組み替えが
 起こりうる可逆に近い過程になる（詳細は A24）。`--k-off-per-s` に非零の値
 （目安 1e-4〜1e-2 /s）を渡すと、この可逆性を試せる。
+
+### 運動性モード（`--swim-speed-um-s`）——大腸菌自身の遊泳を考慮する
+
+![運動性モード](results/animations/chain_motile.gif)
+
+ここまでの動画はすべて、細胞が受動的なブラウン拡散だけで出会うと仮定していた。
+しかし使用株 MG1655 は運動性を持ち（半固形寒天での運動性アッセイで確認されて
+いる一般的事実）、Glass & Riedel-Kruse (2018) が報告する「凝集は1時間以内に
+肉眼で分かる凝集・沈降として検出できた」という速さは、受動拡散（既定の並進
+拡散係数 ~0.4 µm²/s）だけでは説明しにくい。`--swim-speed-um-s` を正の値に
+すると、結合していない自由な細胞は **run-and-tumble 運動**（直進遊泳と方向
+転換を交互に繰り返す、大腸菌の走化性研究で古典的な運動様式）をするようになる
+（A25）。結合してクラスタの一部になった細胞は能動推進を止める。
+
+run・tumble の継続時間はそれぞれ指数分布（ポアソン過程）に従うとし、速度・
+平均継続時間・方向転換角度の既定値は **Berg & Brown (1972)**——大腸菌の
+走化性を3次元追跡で解析した古典的な研究——の野生株 AW405 のデータを全文照合
+した値である（速度 14.2±3.4 µm/s、run 0.86±1.18 s、tumble 0.14±0.19 s、
+方向転換角度 68.0±36.0°）。方向転換角度は実際には0°に偏らない非一様な分布
+（原著 Fig. 3）なので、平均・標準偏差が一致するガンマ分布からサンプルする。
+
+```bash
+python3 scripts/simulate_chain_formation.py --scenario chain --swim-speed-um-s 14.2 \
+    --total-time-s 20 --n-cells 16 --box-size-um 20
+```
+
+ただしこの既定値をそのまま本モデルの状況に当てはめることには限界がある。
+測定株（AW405）は本モデルが対象とする MG1655 とは別の K12 系統であり、測定
+条件（32°C、粘度2.7 cpの追跡用培地、3次元追跡）も本モデルの想定（水の粘度、
+平面内の2次元運動）と異なる。また、合成アドヘシンを大量発現し定常期まで
+静置培養24時間置いた細胞で運動性がどこまで保たれるかも未確認である（詳細は
+A25）。したがって運動性モードは「能動運動を考慮すると出会い頻度がどう変わり
+うるか」を探る定性的なツールであり、定量的な予測ではない。
 
 ## 主要な結果
 
@@ -216,7 +249,7 @@ k_off が数学的に厳密なゼロだと証明したものではない。し�
   どこが一致し、どこがなぜ違うかを式のレベルで記録している。
 - **[docs/parameters.md](docs/parameters.md)** — 使用した文献値の一覧。
   値・単位・不確かさ・出典が対応表になっている。
-- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 24 個の仮定（静的モデル14 + 時間発展シミュレーション10）。
+- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 25 個の仮定（静的モデル14 + 時間発展シミュレーション11）。
   各仮定について、そう置いた根拠と、**もし破れていたら結果がどう変わるか**を併記。
 
 どちらも `adhesion/literature.py` と `adhesion/assumptions.py` から自動生成される
@@ -409,6 +442,7 @@ predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 | 文献 | 全文確認 | 供給している値 |
 |---|---|---:|
 | Costan et al. (2024) ＋ Supplement | ✅ | 18 |
+| Berg & Brown (1972) | ✅ | 4 |
 | Rassam et al. (2015) | ✅ | 2 |
 | Klamecka et al. (2015) | ✅ | 2 |
 | Glass & Riedel-Kruse (2018) | ✅ | 0（機構の確認に使用） |
@@ -456,6 +490,9 @@ Bell–Evans 回帰に固定して使っているだけだった。両論文と�
 - Costan, S. A., Ryan, P. M., Kim, H., Wolgemuth, C. W. & Riedel-Kruse, I. H. (2024). Biophysical characterization of synthetic
   adhesins for predicting and tuning engineered living material properties.
   *Matter* **7**, 2125–2143. <https://doi.org/10.1016/j.matt.2024.03.019>
+- Berg, H. C. & Brown, D. A. (1972). Chemotaxis in Escherichia coli analysed by
+  Three-dimensional Tracking. *Nature* **239**, 500–504.
+  <https://doi.org/10.1038/239500a0>
 - Glass, D. S. & Riedel-Kruse, I. H. (2018). A Synthetic Bacterial Cell-Cell Adhesion
   Toolbox for Programming Multicellular Morphologies and Patterns.
   *Cell* **174**, 649–658. <https://doi.org/10.1016/j.cell.2018.06.041>

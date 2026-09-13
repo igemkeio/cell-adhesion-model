@@ -671,5 +671,159 @@ class SpontaneousDissociationTests(unittest.TestCase):
         self.assertFalse(counts == sorted(counts), "k_off>0 なのに結合が一度も減らなかった")
 
 
+class ActiveMotilityConfigTests(unittest.TestCase):
+    def test_not_motile_by_default(self):
+        self.assertFalse(dyn.DynamicsConfig().motile)
+
+    def test_motile_when_swim_speed_positive(self):
+        self.assertTrue(dyn.DynamicsConfig(swim_speed_um_s=20.0).motile)
+
+    def test_rejects_negative_swim_speed(self):
+        with self.assertRaises(ValueError):
+            dyn.DynamicsConfig(swim_speed_um_s=-1.0)
+
+    def test_rejects_non_positive_run_time(self):
+        with self.assertRaises(ValueError):
+            dyn.DynamicsConfig(mean_run_time_s=0.0)
+
+    def test_rejects_non_positive_tumble_time(self):
+        with self.assertRaises(ValueError):
+            dyn.DynamicsConfig(mean_tumble_time_s=-0.1)
+
+    def test_rejects_turn_angle_out_of_range(self):
+        with self.assertRaises(ValueError):
+            dyn.DynamicsConfig(tumble_turn_angle_deg=200.0)
+
+    def test_safe_dt_is_unchanged_when_not_motile(self):
+        config = dyn.DynamicsConfig(dt_s=0.02)
+        self.assertEqual(dyn._safe_dt_for_motility(config), 0.02)
+
+    def test_safe_dt_shrinks_with_swim_speed(self):
+        config = dyn.DynamicsConfig(dt_s=0.02, swim_speed_um_s=20.0)
+        safe_dt = dyn._safe_dt_for_motility(config)
+        self.assertLess(safe_dt, config.dt_s)
+
+
+class ActiveMotilityTests(unittest.TestCase):
+    """run-and-tumble 運動（A25）を直接組み立てた状態で確かめる。
+
+    使用株 MG1655 は運動性を持つ（半固形寒天での運動性アッセイで確認されている
+    一般的事実）。既定値（速度・run/tumble時間・旋回角度）は Berg & Brown
+    (1972) の野生株 AW405 の値（全文照合済み）だが、別の K12 系統・別の
+    測定条件でのものである（A25）。
+    """
+
+    def _single_free_cell_state(self, angle: float = 0.0) -> dyn.SimulationState:
+        return dyn.SimulationState(
+            positions=np.array([[10.0, 10.0]]),
+            angles=np.array([angle]),
+            head_free=np.array([True]),
+            tail_free=np.array([True]),
+            bonds=[],
+        )
+
+    def test_not_motile_does_nothing(self):
+        state = self._single_free_cell_state()
+        config = dyn.DynamicsConfig(swim_speed_um_s=0.0)
+        rng = np.random.default_rng(0)
+        before = state.positions.copy()
+        dyn._apply_active_motility(state, config, dt_s=0.02, rng=rng)
+        self.assertTrue(np.array_equal(state.positions, before))
+
+    def test_running_cell_advances_along_its_heading(self):
+        state = self._single_free_cell_state(angle=0.0)
+        state.running[0] = True
+        config = dyn.DynamicsConfig(
+            swim_speed_um_s=20.0, mean_run_time_s=1e9, mean_tumble_time_s=0.1,
+        )
+        rng = np.random.default_rng(0)
+        dt = 0.004
+        dyn._apply_active_motility(state, config, dt_s=dt, rng=rng)
+        expected = np.array([10.0 + 20.0 * dt, 10.0])
+        self.assertTrue(np.allclose(state.positions[0], expected))
+        self.assertTrue(state.running[0], "run時間が実質無限大なのにtumbleに切り替わった")
+
+    def test_tumbling_cell_does_not_translate(self):
+        state = self._single_free_cell_state()
+        state.running[0] = False
+        config = dyn.DynamicsConfig(
+            swim_speed_um_s=20.0, mean_run_time_s=1.0, mean_tumble_time_s=1e9,
+        )
+        rng = np.random.default_rng(0)
+        before = state.positions.copy()
+        dyn._apply_active_motility(state, config, dt_s=0.004, rng=rng)
+        self.assertTrue(np.array_equal(state.positions, before))
+
+    def test_bonded_cell_does_not_actively_move(self):
+        """結合した細胞は能動推進を止める（A25 の簡略化）。"""
+
+        state = dyn.SimulationState(
+            positions=np.array([[10.0, 10.0], [12.0, 10.0]]),
+            angles=np.zeros(2),
+            head_free=np.array([False, True]),
+            tail_free=np.array([True, False]),
+            bonds=[dyn.Bond(0, 1, "polar", dyn.HALF_CYLINDER_UM, 0.0, -dyn.HALF_CYLINDER_UM, math.pi)],
+        )
+        state.running[:] = True
+        config = dyn.DynamicsConfig(swim_speed_um_s=20.0, mean_run_time_s=1e9)
+        rng = np.random.default_rng(0)
+        before = state.positions.copy()
+        dyn._apply_active_motility(state, config, dt_s=0.004, rng=rng)
+        self.assertTrue(np.array_equal(state.positions, before))
+
+    def test_mean_run_duration_matches_configured_value(self):
+        """run から tumble への切り替えもポアソン過程（平均寿命 = mean_run_time_s）。"""
+
+        mean_run_time_s = 1.0
+        dt = 0.01
+        durations = []
+        for trial in range(200):
+            state = self._single_free_cell_state()
+            state.running[0] = True
+            config = dyn.DynamicsConfig(
+                swim_speed_um_s=20.0, mean_run_time_s=mean_run_time_s, mean_tumble_time_s=1e9,
+            )
+            rng = np.random.default_rng(trial)
+            steps = 0
+            while state.running[0] and steps < 100_000:
+                dyn._apply_active_motility(state, config, dt_s=dt, rng=rng)
+                steps += 1
+            durations.append(steps * dt)
+        mean_duration = sum(durations) / len(durations)
+        self.assertAlmostEqual(mean_duration, mean_run_time_s, delta=0.15)
+
+    def test_motile_free_cell_covers_much_more_ground_than_passive_diffusion(self):
+        """遊泳中の変位は、受動拡散だけの場合よりずっと大きいはず。
+
+        Glass & Riedel-Kruse (2018) は「凝集が1時間以内に肉眼で分かる凝集・
+        沈降として検出できた」と報告しており、受動拡散だけでは説明しにくい
+        速さである。能動運動がその候補になりうることを、変位の大きさで確認する。
+        """
+
+        dt = 0.004
+        n_steps = 250  # 1秒ぶん
+        state_motile = self._single_free_cell_state()
+        state_motile.running[0] = True
+        config_motile = dyn.DynamicsConfig(
+            swim_speed_um_s=20.0, mean_run_time_s=1e9, mean_tumble_time_s=0.1,
+        )
+        rng = np.random.default_rng(0)
+        for _ in range(n_steps):
+            dyn._apply_active_motility(state_motile, config_motile, dt_s=dt, rng=rng)
+        motile_displacement = float(
+            np.linalg.norm(state_motile.positions[0] - np.array([10.0, 10.0]))
+        )
+
+        state_passive = self._single_free_cell_state()
+        rng2 = np.random.default_rng(0)
+        for _ in range(n_steps):
+            dyn._brownian_step(state_passive, dt, rng2)
+        passive_displacement = float(
+            np.linalg.norm(state_passive.positions[0] - np.array([10.0, 10.0]))
+        )
+
+        self.assertGreater(motile_displacement, 10.0 * passive_displacement)
+
+
 if __name__ == "__main__":
     unittest.main()

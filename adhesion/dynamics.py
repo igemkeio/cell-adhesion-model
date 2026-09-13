@@ -65,12 +65,26 @@
    ため、A18・A19 と同じ性格の実効パラメータとして扱う（A23）。ボルテックスに
    よる初期混合そのものは、既存のランダムな初期配置がすでに表しているとみなし、
    別途シミュレートしない。
+8. **能動運動（`swim_speed_um_s` を指定）**：既定では水平面内の運動は
+   `_brownian_step` の受動拡散だけだが、使用株 MG1655 は運動性を持つ
+   （半固形寒天での運動性アッセイで確認されている一般的事実）。
+   Glass & Riedel-Kruse (2018) が「凝集は1時間以内に肉眼で分かる凝集・沈降と
+   して検出できた」と報告している速さは、受動拡散だけでは説明しにくく、
+   能動運動が寄与している可能性を示唆する。`swim_speed_um_s > 0` にすると、
+   結合していない自由な細胞は run（直進遊泳）と tumble（向きを変える）を
+   ポアソン過程的に切り替える run-and-tumble 運動をする（A25）。結合した
+   細胞は能動推進を止める（クラスタとの能動-弾性的な相互作用は範囲外とする
+   簡略化）。速度・run/tumble時間・旋回角度の既定値は Berg & Brown (1972) の
+   野生株 AW405 の値（全文照合済み）。ただし別の K12 系統・専用の追跡用
+   培地（32°C、粘度2.7 cp）での測定であり、この特定の株・条件での運動性の
+   保持や、3次元で測定した旋回角度を平面内の運動にそのまま使うことの妥当性は
+   未検証である（A25）。
 
 このモジュールは matplotlib に依存しない（可視化は `scripts/simulate_chain_formation.py`
 が担う）。
 
 依存する仮定: A7（の時間発展への拡張）、A15、A16、A17、A18、A19、A20、A21、A22、
-A23、A24。詳細は `adhesion.assumptions` を参照。
+A23、A24、A25。詳細は `adhesion.assumptions` を参照。
 """
 
 from __future__ import annotations
@@ -88,7 +102,7 @@ from .assumptions import uses
 
 DYNAMICS_ASSUMPTIONS = uses(
     "A5", "A7", "A8", "A9", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23",
-    "A24",
+    "A24", "A25",
 )
 
 # --------------------------------------------------------------------------
@@ -284,6 +298,34 @@ class DynamicsConfig:
     #: （A24）。非零の値を渡すと、結合は毎ステップ確率的に解離しうる。
     k_off_per_s: float = 0.0
 
+    #: 遊泳速度（µm/s）。0（既定）なら能動運動なし（水平面内は受動拡散のみ）。
+    #: 正の値を渡すと、結合していない自由な細胞は run-and-tumble 運動をする
+    #: （A25）。使用株 MG1655 は運動性を持つ（半固形寒天での運動性アッセイで
+    #: 確認されている一般的事実）。Glass & Riedel-Kruse (2018) は「凝集が1時間
+    #: 以内に肉眼で分かる凝集・沈降として検出できた」と報告しており、この速さは
+    #: 受動拡散だけでは説明しにくい——能動運動が関与している可能性を示唆する。
+    #: 有効にする場合の目安は `lit.SWIM_SPEED`（Berg & Brown 1972、野生株
+    #: AW405、全文照合済み）。ただしこれは別の K12 系統・専用の追跡用培地での
+    #: 測定であり、この特定の株・条件（合成アドヘシンの大量発現、定常期まで
+    #: 培養した細胞、静置培養24時間）で運動性がどこまで保たれるかは未確認
+    #: である（A25）。
+    swim_speed_um_s: float = 0.0
+    #: run 相の平均継続時間（秒）。指数分布を仮定する（ポアソン過程——原著
+    #: 自身が自己相関関数からこれを確認している）。既定値は Berg & Brown
+    #: (1972) の野生株 AW405 の値（全文照合済み、`lit.MEAN_RUN_TIME`）。
+    mean_run_time_s: float = float(lit.MEAN_RUN_TIME)
+    #: tumble 相の平均継続時間（秒）。既定値は同上（`lit.MEAN_TWIDDLE_TIME`。
+    #: 原著の用語は twiddle だが、本モデルは後年の標準的な呼び方に合わせる）。
+    mean_tumble_time_s: float = float(lit.MEAN_TWIDDLE_TIME)
+    #: tumble で向きを変える角度の平均（度）。既定値は同上（`lit.TUMBLE_TURN_ANGLE`）
+    #: で、3次元追跡での測定値を本モデルの平面内の運動にそのまま転用している。
+    #: 実際の分布は0°に偏らない非一様な形（原著 Fig. 3）だが、ここでは平均・
+    #: 標準偏差が一致するガンマ分布で近似する（A25）。
+    tumble_turn_angle_deg: float = float(lit.TUMBLE_TURN_ANGLE)
+    #: tumble で向きを変える角度の標準偏差（度）。既定値は Berg & Brown (1972)
+    #: の野生株 AW405 の値。ガンマ分布の形状パラメータを決めるのに使う。
+    tumble_turn_angle_std_deg: float = float(lit.TUMBLE_TURN_ANGLE.uncertainty or 36.0)
+
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -305,6 +347,20 @@ class DynamicsConfig:
             raise ValueError("supernatant_fraction は 0 より大きく 1 以下である必要があります")
         if self.k_off_per_s < 0.0:
             raise ValueError("k_off_per_s は非負である必要があります")
+        if self.swim_speed_um_s < 0.0:
+            raise ValueError("swim_speed_um_s は非負である必要があります")
+        if self.mean_run_time_s <= 0.0:
+            raise ValueError("mean_run_time_s は正である必要があります")
+        if self.mean_tumble_time_s <= 0.0:
+            raise ValueError("mean_tumble_time_s は正である必要があります")
+        if not 0.0 <= self.tumble_turn_angle_deg <= 180.0:
+            raise ValueError("tumble_turn_angle_deg は0以上180以下である必要があります")
+
+    @property
+    def motile(self) -> bool:
+        """能動的な run-and-tumble 運動を計算するか（A25）。"""
+
+        return self.swim_speed_um_s > 0.0
 
     @property
     def periodic_x(self) -> bool:
@@ -354,10 +410,15 @@ class SimulationState:
     bonds: list[Bond] = field(default_factory=list)
     #: 沈降の深さ（µm、下向きが正）。A23。沈降を計算しない設定では常に0のまま。
     depth_um: np.ndarray | None = None
+    #: run-and-tumble 運動（A25）の相。True なら run（直進遊泳）、False なら
+    #: tumble（向きを変える）。運動性を計算しない設定では使われない。
+    running: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if self.depth_um is None:
             self.depth_um = np.zeros(self.positions.shape[0])
+        if self.running is None:
+            self.running = np.ones(self.positions.shape[0], dtype=bool)
 
 
 @dataclass(frozen=True)
@@ -615,6 +676,21 @@ def _safe_dt_for_shear(config: DynamicsConfig) -> float:
     if config.shear_rate_per_s <= 0.0:
         return config.dt_s
     safe_dt = _SHEAR_DT_SAFETY_FACTOR * shear.contact_duration_s(config.shear_rate_per_s)
+    return min(config.dt_s, safe_dt)
+
+
+#: 遊泳中の1ステップの移動量が細胞半径のこの割合を超えないよう dt を抑える
+#: （運動性モードのみ）。大きすぎる dt は、接触判定（`BOND_CAPTURE_GAP_UM`
+#: スケール）を素通りしたり、細胞どうしがすり抜けたりする原因になる。
+_MOTILITY_DT_SAFETY_FACTOR = 0.2
+
+
+def _safe_dt_for_motility(config: DynamicsConfig) -> float:
+    """遊泳による移動量を取りこぼさない上限まで、必要なら dt を自動的に縮める。"""
+
+    if not config.motile:
+        return config.dt_s
+    safe_dt = _MOTILITY_DT_SAFETY_FACTOR * CELL_RADIUS_UM / config.swim_speed_um_s
     return min(config.dt_s, safe_dt)
 
 
@@ -954,6 +1030,67 @@ def _apply_settling(state: SimulationState, config: DynamicsConfig, dt_s: float)
     np.clip(state.depth_um, 0.0, config.well_depth_um, out=state.depth_um)
 
 
+def _bonded_cell_ids(bonds: list[Bond]) -> set[int]:
+    ids: set[int] = set()
+    for bond in bonds:
+        ids.add(bond.i)
+        ids.add(bond.j)
+    return ids
+
+
+def _apply_active_motility(
+    state: SimulationState, config: DynamicsConfig, dt_s: float, rng: np.random.Generator
+) -> None:
+    """結合していない自由な細胞の run-and-tumble 運動を1ステップぶん進める（A25）。
+
+    `swim_speed_um_s = 0`（既定）では何もせず、水平面内の運動は
+    `_brownian_step` の受動拡散だけになる（この関数を追加する前と同じ）。
+
+    正の値では、各自由な細胞は run（直進遊泳）と tumble（向きを変える）の
+    2相を、それぞれ指数分布する持続時間でポアソン過程的に切り替える
+    （結合形成・解離と同じ様式のベルヌーイ試行——Berg & Brown 1972 が自己
+    相関関数からこの統計量そのものをポアソン過程だと確認している）。run 中は
+    現在の向きに沿って `swim_speed_um_s * dt` だけ直進し、tumble が終わる
+    瞬間に向きをランダムに変える。方向転換角度の大きさは、平均
+    `tumble_turn_angle_deg`・標準偏差 `tumble_turn_angle_std_deg` に一致する
+    ガンマ分布からサンプルする——原著 Fig. 3 が示す「0°に偏らない非一様な
+    分布」を、一様分布より現実に近い形で近似するため（A25）。符号（左右
+    どちらに曲がるか）は独立に一様ランダムとする。受動的な並進・回転拡散
+    （`_brownian_step`）はこれに関係なく常時かかる——遊泳中も熱ゆらぎ自体は
+    消えないが、遊泳速度がずっと大きいため無視できるほど小さい寄与になる。
+
+    結合した細胞（クラスタの一部になった細胞）は能動推進を止める——鞭毛の
+    推力とクラスタの粘性抵抗・結合拘束との相互作用（能動-弾性的な鎖の座屈や
+    回転など）は本モデルの範囲外とする単純化である。
+    """
+
+    if not config.motile:
+        return
+    bonded = _bonded_cell_ids(state.bonds)
+    run_switch_prob = 1.0 - math.exp(-dt_s / config.mean_run_time_s)
+    tumble_switch_prob = 1.0 - math.exp(-dt_s / config.mean_tumble_time_s)
+    mean_turn_deg = config.tumble_turn_angle_deg
+    std_turn_deg = config.tumble_turn_angle_std_deg
+    gamma_shape = (mean_turn_deg / std_turn_deg) ** 2
+    gamma_scale_deg = std_turn_deg**2 / mean_turn_deg
+
+    for k in range(state.positions.shape[0]):
+        if k in bonded:
+            continue
+        if state.running[k]:
+            axis = _unit_vector(state.angles[k])
+            state.positions[k] += config.swim_speed_um_s * dt_s * axis
+            if rng.random() < run_switch_prob:
+                state.running[k] = False
+        else:
+            if rng.random() < tumble_switch_prob:
+                turn = math.radians(rng.gamma(gamma_shape, gamma_scale_deg))
+                if rng.random() < 0.5:
+                    turn = -turn
+                state.angles[k] += turn
+                state.running[k] = True
+
+
 def _free_pole_slot_for_axial(state: SimulationState, cell: int, axial: float) -> None:
     """極結合が切れたとき、その極スロットを再び空ける。"""
 
@@ -1036,14 +1173,16 @@ def run(config: DynamicsConfig) -> SimulationResult:
 
     各ステップは次の段からなる。
     1. 各細胞を独立にブラウン運動させる（`_brownian_step`、非剛体・自由排水）。
-    2. 震盪モード（`shear_rate_per_s > 0`）では、平面クエット流による決定論的な
+    2. 運動性モード（`swim_speed_um_s > 0`）では、結合していない自由な細胞に
+       run-and-tumble 運動を上乗せする（`_apply_active_motility`、A25）。
+    3. 震盪モード（`shear_rate_per_s > 0`）では、平面クエット流による決定論的な
        移流・Jeffery 回転を上乗せする（`_apply_shear_drift`、A20・A21）。
-    3. 沈降モード（`well_depth_um` を指定）では、クラスタごとの重力沈降を
+    4. 沈降モード（`well_depth_um` を指定）では、クラスタごとの重力沈降を
        進める（`_apply_settling`、A23）。鉛直方向に離れすぎた細胞どうしは
        結合判定を打ち切る（`VERTICAL_CONTACT_GAP_UM`）。
-    4. 結合（柔軟なジョイント）・排除体積・壁の拘束を反復緩和で満たす
+    5. 結合（柔軟なジョイント）・排除体積・壁の拘束を反復緩和で満たす
        （`_resolve_constraints`）。震盪モードでは流れ方向（x）を周期境界にする。
-    5. 接触した細胞間で結合判定を行い、成立すれば現在の接触配置のまま記録する。
+    6. 接触した細胞間で結合判定を行い、成立すれば現在の接触配置のまま記録する。
        既定（`k_off_per_s = 0`）では一度できた結合は解離しない（A15、
        k_off ≈ 0）——ただし震盪モードでは、せん断荷重が破断力を超えた極結合
        だけは切れうる（A22）。`k_off_per_s` を正にすると、すべての結合が
@@ -1071,7 +1210,7 @@ def run(config: DynamicsConfig) -> SimulationResult:
 
     state = _initial_state(config, rng)
 
-    dt_s = _safe_dt_for_shear(config)
+    dt_s = min(_safe_dt_for_shear(config), _safe_dt_for_motility(config))
     n_steps = int(round(config.total_time_s / dt_s))
     broad_cutoff = CELL_LENGTH_UM + 0.5
     periodic_x = config.periodic_x
@@ -1086,6 +1225,7 @@ def run(config: DynamicsConfig) -> SimulationResult:
 
     for step in range(1, n_steps + 1):
         _brownian_step(state, dt_s, rng)
+        _apply_active_motility(state, config, dt_s, rng)
         _apply_shear_drift(state, config, dt_s)
         if periodic_x:
             _wrap_periodic_x(state, config.box_size_um)

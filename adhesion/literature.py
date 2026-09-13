@@ -180,6 +180,28 @@ REFERENCES: dict[str, Reference] = {
         full_text_verified=True,
         verification_note="本文と Extended Data を全文照合。",
     ),
+    "bergbrown1972": Reference(
+        key="bergbrown1972",
+        authors="Berg, Howard C. and Brown, Douglas A.",
+        title="Chemotaxis in Escherichia coli analysed by Three-dimensional Tracking",
+        journal="Nature",
+        year=1972,
+        volume="239",
+        pages="500-504",
+        doi="10.1038/239500a0",
+        full_text_verified=True,
+        verification_note=(
+            "本文5ページを全文照合。run（直進遊泳）と twiddle（原著の用語。"
+            "本モデルでは後年の標準的な呼び方に合わせ tumble と呼ぶ）の統計は"
+            "ポアソン過程（単位時間あたりの終了確率が一定）であることを確認した。"
+            "本モデルが使う値は等方的な溶液中（勾配なし）での野生株 AW405 の"
+            "値（Table 1）。AW405 は E. coli K12 の野生株で、この研究で用いる"
+            "MG1655 とは別系統だが、同じ K12 の運動性のある野生株である。"
+            "測定は 32°C、粘度 2.7 cp（メチルセルロース入り追跡用培地）での"
+            "3次元追跡によるもので、本モデルの水を模した粘度・平面内の運動とは"
+            "条件が異なる点に注意（仮定 A25）。"
+        ),
+    ),
 }
 
 
@@ -402,6 +424,66 @@ SPONTANEOUS_OFF_RATE = LiteratureValue(
 )
 
 # --------------------------------------------------------------------------
+# 運動性（別文献。時間発展シミュレーションの run-and-tumble 運動に使う、A25）
+# --------------------------------------------------------------------------
+SWIM_SPEED = LiteratureValue(
+    symbol="v_swim",
+    value=14.2,
+    uncertainty=3.4,
+    unit="µm/s",
+    quantity="run（直進遊泳）中の速度",
+    source="bergbrown1972",
+    note=(
+        "野生株 AW405（E. coli K12）の等方的な溶液（勾配なし）での値（Table 1）。"
+        "個々の追跡例では 21.2 µm/s（Fig. 1）、非走化性変異株 cheC497 では"
+        "20.0±4.9 µm/s も報告されており、10–35 µm/s 程度の幅がある。"
+        "本モデルで使う MG1655 とは別の K12 系統での測定である。"
+    ),
+)
+
+MEAN_RUN_TIME = LiteratureValue(
+    symbol="t_run",
+    value=0.86,
+    uncertainty=1.18,
+    unit="s",
+    quantity="run（直進遊泳）相の平均継続時間",
+    source="bergbrown1972",
+    note=(
+        "野生株 AW405 の値（Table 1）。run・twiddle の終了確率は単位時間あたり"
+        "一定（ポアソン過程）であることが自己相関関数の計算から確認されている。"
+        "不確かさが平均値より大きいのは指数分布そのものの性質（標準偏差 = 平均）"
+        "であり、測定誤差ではない。"
+    ),
+)
+
+MEAN_TWIDDLE_TIME = LiteratureValue(
+    symbol="t_twiddle",
+    value=0.14,
+    uncertainty=0.19,
+    unit="s",
+    quantity="twiddle（原著の用語。本モデルでは tumble と呼ぶ）相の平均継続時間",
+    source="bergbrown1972",
+    note="野生株 AW405 の値（Table 1）。run と同じくポアソン過程・指数分布。",
+)
+
+TUMBLE_TURN_ANGLE = LiteratureValue(
+    symbol="theta_turn",
+    value=68.0,
+    uncertainty=36.0,
+    unit="度",
+    quantity="tumble（原著の twiddle）前後での方向転換角度",
+    source="bergbrown1972",
+    note=(
+        "野生株 AW405、1,166 イベントの分布（Fig. 3）。3次元追跡での値であり、"
+        "完全にランダムな方向転換なら平均90°・標準偏差39.2°になるところ、"
+        "小さい角度に偏った分布（skewed toward small angles）である。本モデルは"
+        "平面内（2次元）の運動を扱うため、この3次元の値をそのまま平均値として"
+        "転用している。分布の形も、原著の非一様な形を平均・標準偏差が一致する"
+        "ガンマ分布で近似する（A25）。"
+    ),
+)
+
+# --------------------------------------------------------------------------
 # 外膜そのものの性質（別文献。モデルの制約を評価するために使う）
 # --------------------------------------------------------------------------
 OMP_ISLAND_DIAMETER = LiteratureValue(
@@ -508,6 +590,10 @@ ALL_VALUES: list[LiteratureValue] = [
     COPY_NUMBER_CORRECTION,
     BOND_FORMATION_HALF_TIME,
     SPONTANEOUS_OFF_RATE,
+    SWIM_SPEED,
+    MEAN_RUN_TIME,
+    MEAN_TWIDDLE_TIME,
+    TUMBLE_TURN_ANGLE,
     ADHESINS_AT_MID_INDUCTION,
     ADHESINS_AT_MAX_INDUCTION,
     SURFACE_DENSITY_AT_MAX,
