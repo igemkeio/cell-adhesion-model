@@ -17,10 +17,18 @@
    `side_bond_count`）で決まる。動的シミュレーションが新たに扱うのは「いつ・どの
    組み合わせで接触するか」という幾何と時間の部分だけであり、結合数そのものの
    計算式は静的モデルと共有する。
-3. **不可逆結合**：Costan et al. (2024) の結論（k_off ≈ 0、`SPONTANEOUS_OFF_RATE`）
-   をそのまま延長し、一度成立した結合は解離しない。したがって形態は熱力学的な
+3. **結合の解離は既定で0、ただしパラメータ化されている（`k_off_per_s`）**：
+   既定値は Costan et al. (2024) の結論（k_off ≈ 0、`SPONTANEOUS_OFF_RATE`）を
+   そのまま延長し、一度成立した結合は解離しない。したがって形態は熱力学的な
    有利不利ではなく、「どの接触が先に成立するか」という経路依存の過程になる
-   （`docs/literature_findings.md` の該当箇所を参照）。
+   （`docs/literature_findings.md` の該当箇所を参照）。ただし原著のこの結論は
+   荷重速度 5–100 pN/s という狭い範囲で傾きが検出できなかったことに基づく
+   検出限界の主張であり（Supplemental Note 4 原文で確認済み）、この結合
+   （anti-EPEA/EPEA）は他の測定に使われている例外的に安定な anti-GFP/GFP
+   ペアとは異なる、より低親和性のペアである。短時間のシミュレーション（鎖形成・
+   震盪デモ）ではこの不確かさは結論を左右しないが、24時間の沈降モードでは
+   無視できない可能性がある（A24）。`k_off_per_s` を正の値にすると、結合は
+   `_apply_spontaneous_dissociation` により毎ステップ確率的に解離しうる。
 4. **結合形成は速度論的**：`literature.BOND_FORMATION_HALF_TIME`（≈0.1秒）を
    ベルヌーイ過程の特徴時間として使う。接触が長く続く静置条件ではほぼ確実に
    結合が成立し、震盪条件で接触時間が短くなる場合には結合が成立しないまま
@@ -62,7 +70,7 @@
 が担う）。
 
 依存する仮定: A7（の時間発展への拡張）、A15、A16、A17、A18、A19、A20、A21、A22、
-A23。詳細は `adhesion.assumptions` を参照。
+A23、A24。詳細は `adhesion.assumptions` を参照。
 """
 
 from __future__ import annotations
@@ -79,7 +87,8 @@ from . import shear
 from .assumptions import uses
 
 DYNAMICS_ASSUMPTIONS = uses(
-    "A5", "A7", "A8", "A9", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23"
+    "A5", "A7", "A8", "A9", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23",
+    "A24",
 )
 
 # --------------------------------------------------------------------------
@@ -261,6 +270,20 @@ class DynamicsConfig:
     #: `well_depth_um` が None のときは使われない。
     supernatant_fraction: float = 0.25
 
+    #: 結合の自発的な解離速度定数（1/s）。既定 0 は Costan et al. (2024) の
+    #: 結論（k_off はゼロとみなすのが最良の推定）に合わせた不可逆凝集（A15）。
+    #: ただしこの結論は、荷重速度 5–100 pN/s という狭い範囲で傾きが検出でき
+    #: なかったことに基づく「検出限界」の主張であり、k_off が数学的に厳密な
+    #: ゼロだと証明したものではない（Supplemental Note 4 原文で確認済み）。
+    #: この結合（anti-EPEA / EPEA）は、Costan et al. が他の測定に使っている
+    #: 例外的に安定な anti-GFP / GFP ペア（市販品「GFP-Trap」、Kd ~ 1 pM）とは
+    #: 別の、より低親和性（ナノモル）のペアである。他のナノボディ-抗原ペアの
+    #: SPR 測定では k_off ~ 10⁻³–10⁻² /s（半減期にして数十秒〜十数分）が
+    #: 珍しくない。短時間のシミュレーション（鎖形成・震盪デモ）ではこの不確かさ
+    #: は結論を左右しないが、24時間の沈降モードでは無視できない可能性がある
+    #: （A24）。非零の値を渡すと、結合は毎ステップ確率的に解離しうる。
+    k_off_per_s: float = 0.0
+
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -280,6 +303,8 @@ class DynamicsConfig:
             raise ValueError("well_depth_um は正である必要があります")
         if not 0.0 < self.supernatant_fraction <= 1.0:
             raise ValueError("supernatant_fraction は 0 より大きく 1 以下である必要があります")
+        if self.k_off_per_s < 0.0:
+            raise ValueError("k_off_per_s は非負である必要があります")
 
     @property
     def periodic_x(self) -> bool:
@@ -978,6 +1003,34 @@ def _apply_shear_rupture(
         _free_pole_slot_for_axial(state, removed.j, removed.axial_j)
 
 
+def _apply_spontaneous_dissociation(
+    state: SimulationState, k_off_per_s: float, dt_s: float, rng: np.random.Generator
+) -> None:
+    """結合の自発的な解離（A15・A24）を1ステップぶん進める。
+
+    `k_off_per_s = 0`（既定）ではまったく呼ばれず、結合は不可逆（Costan et al.
+    の best estimate どおり）。0 より大きい値を渡すと、各結合が独立に確率
+    `1 - exp(-k_off_per_s * dt)` で解離する（結合形成と対称なベルヌーイ過程）。
+    この既定値の生物学的な妥当性については `DynamicsConfig.k_off_per_s` の
+    docstring と仮定 A24 を参照——狭い荷重速度範囲での検出限界に基づく主張で
+    あり、この結合（anti-EPEA/EPEA）は Costan et al. が他の測定に使っている
+    例外的に安定な anti-GFP/GFP ペアとは異なる、より低親和性のペアである。
+    """
+
+    if k_off_per_s <= 0.0 or not state.bonds:
+        return
+    p_break = 1.0 - math.exp(-k_off_per_s * dt_s)
+    survivors: list[Bond] = []
+    for bond in state.bonds:
+        if rng.random() < p_break:
+            if bond.kind == "polar":
+                _free_pole_slot_for_axial(state, bond.i, bond.axial_i)
+                _free_pole_slot_for_axial(state, bond.j, bond.axial_j)
+            continue
+        survivors.append(bond)
+    state.bonds = survivors
+
+
 def run(config: DynamicsConfig) -> SimulationResult:
     """細胞集団の時間発展シミュレーションを実行する。
 
@@ -991,13 +1044,17 @@ def run(config: DynamicsConfig) -> SimulationResult:
     4. 結合（柔軟なジョイント）・排除体積・壁の拘束を反復緩和で満たす
        （`_resolve_constraints`）。震盪モードでは流れ方向（x）を周期境界にする。
     5. 接触した細胞間で結合判定を行い、成立すれば現在の接触配置のまま記録する。
-       一度できた結合は解離しない（A15、k_off ≈ 0）——ただし震盪モードでは、
-       せん断荷重が破断力を超えた極結合だけは切れうる（A22）。
+       既定（`k_off_per_s = 0`）では一度できた結合は解離しない（A15、
+       k_off ≈ 0）——ただし震盪モードでは、せん断荷重が破断力を超えた極結合
+       だけは切れうる（A22）。`k_off_per_s` を正にすると、すべての結合が
+       自発的にも確率的に解離しうる（A24、`_apply_spontaneous_dissociation`）。
 
     震盪モードと沈降モードは独立に有効化できるが、Glass & Riedel-Kruse (2018)
     の実際の凝集アッセイに最も近いのは**沈降モードのみ**（震盪なし）である。
     実際のアッセイは、育成培養こそ震盪するが、凝集そのものは短時間の
-    ボルテックス混合のあと静置で進む。
+    ボルテックス混合のあと静置で進む。長時間（24時間）の沈降モードでは、
+    k_off ≈ 0 の生物学的な妥当性に限界があるため（A24）、`k_off_per_s` に
+    非零の値を指定することを検討するとよい。
     """
 
     rng = np.random.default_rng(config.seed)
@@ -1053,6 +1110,7 @@ def run(config: DynamicsConfig) -> SimulationResult:
             _record_bond(state, i, j, kind, region_i, region_j, p1, p2, s, t)
 
         _apply_shear_rupture(state, config.n_cells, config.shear_rate_per_s)
+        _apply_spontaneous_dissociation(state, config.k_off_per_s, dt_s, rng)
 
         if step % config.frame_stride == 0 or step == n_steps:
             frames.append(

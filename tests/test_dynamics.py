@@ -574,5 +574,102 @@ class SupernatantFractionTests(unittest.TestCase):
         )
 
 
+class SpontaneousDissociationTests(unittest.TestCase):
+    """結合の自発的な解離（A15の既定を外すオプション、A24）を確かめる。
+
+    Costan et al. (2024) の「k_off should be assumed zero」という結論は、
+    Supplemental Note 4 原文の確認により、狭い荷重速度範囲（5-100 pN/s）で
+    傾きを検出できなかったことに基づく検出限界の主張だと分かった
+    （数学的に厳密なゼロの証明ではない）。この結合（anti-EPEA/EPEA）は、
+    他の測定に使われている例外的に安定な anti-GFP/GFP ペアとは異なる、より
+    低親和性のペアであり、他のナノボディ-抗原ペアの独立した SPR 測定では
+    k_off ~ 10⁻³-10⁻²/s も珍しくない。この節は、既定（k_off=0、完全に不可逆）
+    が引き続き正しく動作すること、および非零の k_off を指定したときに
+    結合が実際に確率的に解離することの両方を確認する。
+
+    参考: Costan et al. (2024) Supplemental Note 4 原文
+    "the slope is not significantly different than 0, and due to instrument
+    resolution, ultimately the best estimate is that koff should be assumed
+    zero, i.e., adhesins do not spontaneously disengage."
+    """
+
+    def _bonded_two_cell_state(self) -> dyn.SimulationState:
+        gap = dyn.BRIDGE_UM
+        x1 = dyn.HALF_CYLINDER_UM
+        x2 = x1 + 2 * dyn.CELL_RADIUS_UM + gap + dyn.HALF_CYLINDER_UM
+        return dyn.SimulationState(
+            positions=np.array([[0.0, 0.0], [x2, 0.0]]),
+            angles=np.zeros(2),
+            head_free=np.array([False, True]),
+            tail_free=np.array([True, False]),
+            bonds=[
+                dyn.Bond(0, 1, "polar", dyn.HALF_CYLINDER_UM, 0.0, -dyn.HALF_CYLINDER_UM, math.pi)
+            ],
+        )
+
+    def test_rejects_negative_k_off(self):
+        with self.assertRaises(ValueError):
+            dyn.DynamicsConfig(k_off_per_s=-1.0)
+
+    def test_default_k_off_is_zero_and_never_dissociates(self):
+        """既定（k_off=0）は、この機能を追加する前とビット単位で同じ挙動。"""
+
+        state = self._bonded_two_cell_state()
+        rng = np.random.default_rng(0)
+        for _ in range(1000):
+            dyn._apply_spontaneous_dissociation(state, k_off_per_s=0.0, dt_s=0.02, rng=rng)
+        self.assertEqual(len(state.bonds), 1)
+
+    def test_nonzero_k_off_eventually_dissociates_and_frees_pole_slots(self):
+        state = self._bonded_two_cell_state()
+        rng = np.random.default_rng(1)
+        for _ in range(2000):  # 十分な回数（k_off=2/s なら平均寿命0.5秒 = 25ステップ）
+            dyn._apply_spontaneous_dissociation(state, k_off_per_s=2.0, dt_s=0.02, rng=rng)
+            if not state.bonds:
+                break
+        self.assertEqual(len(state.bonds), 0)
+        self.assertTrue(state.head_free[0])
+        self.assertTrue(state.tail_free[1])
+
+    def test_mean_bond_lifetime_matches_one_over_k_off(self):
+        """解離はポアソン過程になっているはず（平均寿命 = 1/k_off）。"""
+
+        k_off = 1.0
+        dt = 0.02
+        lifetimes = []
+        for trial in range(200):
+            state = self._bonded_two_cell_state()
+            rng = np.random.default_rng(trial)
+            steps = 0
+            while state.bonds and steps < 100_000:
+                dyn._apply_spontaneous_dissociation(state, k_off_per_s=k_off, dt_s=dt, rng=rng)
+                steps += 1
+            lifetimes.append(steps * dt)
+        mean_lifetime = sum(lifetimes) / len(lifetimes)
+        self.assertAlmostEqual(mean_lifetime, 1.0 / k_off, delta=0.15)
+
+    def test_quiescent_run_with_default_k_off_still_never_loses_bonds(self):
+        """`run()` 全体でも、既定（k_off=0）では結合が減らないという既存の
+
+        不変量（A15）が壊れていないことを確かめる（回帰防止）。
+        """
+
+        config = dyn.DynamicsConfig(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
+        result = dyn.run(config)
+        counts = [len(frame.bonds) for frame in result.frames]
+        self.assertEqual(counts, sorted(counts))
+
+    def test_quiescent_run_with_nonzero_k_off_can_lose_bonds(self):
+        """`run()` に non-zero k_off を渡すと、結合数が減る場面がありうる。"""
+
+        config = dyn.DynamicsConfig(
+            n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3,
+            f_pole=0.95, tip_width_um=0.10, k_off_per_s=5.0,
+        )
+        result = dyn.run(config)
+        counts = [len(frame.bonds) for frame in result.frames]
+        self.assertFalse(counts == sorted(counts), "k_off>0 なのに結合が一度も減らなかった")
+
+
 if __name__ == "__main__":
     unittest.main()

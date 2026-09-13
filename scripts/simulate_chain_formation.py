@@ -371,6 +371,20 @@ def main() -> None:
         help="上清として測定される上層の割合（既定 0.25、原著の上部 約25パーセント）。",
     )
     parser.add_argument(
+        "--k-off-per-s",
+        type=float,
+        default=0.0,
+        help=(
+            "結合の自発的な解離速度定数（1/s）。既定 0 は Costan et al. (2024) の"
+            "best estimate（k_off はゼロ）に合わせた不可逆凝集（A15）。ただしこの"
+            "結論は狭い荷重速度範囲での検出限界に基づく主張であり、この結合"
+            "（anti-EPEA/EPEA）は他の測定に使われている例外的に安定な"
+            "anti-GFP/GFP ペアとは異なる、より低親和性のペアである（A24）。"
+            "短時間のデモでは 0 のままでよいが、長時間の沈降モードでは"
+            "1e-4〜1e-2 /s 程度の値を試すことを検討するとよい。"
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -389,6 +403,7 @@ def main() -> None:
         shear_rate_per_s=args.shear_rate_per_s,
         well_depth_um=args.well_depth_um,
         supernatant_fraction=args.supernatant_fraction,
+        k_off_per_s=args.k_off_per_s,
         **overrides,
     )
 

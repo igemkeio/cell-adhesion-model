@@ -53,4 +53,4 @@
 - Rassam, Patrice and Copeland, Nicholas A. and Others (2015). Supramolecular assemblies underpin turnover of outer membrane proteins in bacteria. *Nature **523**, 333-336*. <https://doi.org/10.1038/nature14461>
 
 ---
-生成日: 2026-09-12
+生成日: 2026-09-13
