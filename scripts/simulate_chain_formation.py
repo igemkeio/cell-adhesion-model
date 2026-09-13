@@ -8,7 +8,9 @@
         --total-time-s 3600 --n-cells 16 --box-size-um 20
 
 `adhesion.dynamics` が返す時間発展を、2次元の細胞の形（カプセル）として描画し、
-右側に極接触（鎖）・側面接触（束）の累積本数を時間とともに示す。沈降モードでは
+右側に極接触（鎖）・側面接触（束）の累積結合数（分子対の数。接触の箇所数では
+なく、静的モデルと同じ「結合数」の定義——1箇所の接触あたり `polar_bond_count`
+または `side_bond_count` 個の分子対——で数える）を時間とともに示す。沈降モードでは
 さらに右側に「上清に残る細胞の割合」——実際のアッセイが測定する量——を表示する。
 
 既定では静置（拡散のみ）条件を動画にする。`--shear-rate-per-s` を正の値にすると
@@ -238,13 +240,23 @@ def build_animation(result: dyn.SimulationResult, fps: int) -> animation.FuncAni
     ax_main.add_collection(bond_lines)
 
     times = [frame.time_s for frame in result.frames]
-    polar_counts = [sum(1 for b in frame.bonds if b.kind == "polar") for frame in result.frames]
-    lateral_counts = [sum(1 for b in frame.bonds if b.kind == "lateral") for frame in result.frames]
+    # 「結合数」は静的モデルと同じ定義（接触1箇所あたりの分子対の数）で数える。
+    # 接触の箇所数（＝くっついている細胞の対の数）をそのまま結合数として数える
+    # と、局在によって1接触あたりの分子対数が大きく異なる（例: 先端集中で
+    # 極接触1箇所が ~265 対）ことを反映できず、過小評価になる。
+    polar_counts = [
+        sum(1 for b in frame.bonds if b.kind == "polar") * result.polar_bond_count
+        for frame in result.frames
+    ]
+    lateral_counts = [
+        sum(1 for b in frame.bonds if b.kind == "lateral") * result.side_bond_count
+        for frame in result.frames
+    ]
 
     ax_counts.set_xlim(0, times[-1])
-    ax_counts.set_ylim(0, max(max(polar_counts, default=1), max(lateral_counts, default=1)) + 2)
+    ax_counts.set_ylim(0, max(max(polar_counts, default=1), max(lateral_counts, default=1)) * 1.1 + 2)
     ax_counts.set_xlabel("時間 (s)")
-    ax_counts.set_ylabel("累積結合数")
+    ax_counts.set_ylabel("累積結合数（分子対）")
     ax_counts.set_title("極接触（鎖）と側面接触（束）", fontsize=10)
     (polar_line,) = ax_counts.plot([], [], color=POLAR_BOND_COLOR, lw=2, label="極接触（鎖）")
     (lateral_line,) = ax_counts.plot([], [], color=LATERAL_BOND_COLOR, lw=2, label="側面接触（束）")
@@ -471,10 +483,15 @@ def main() -> None:
         f"側面接触の結合数定数={result.side_bond_count:.1f}"
     )
     final_bonds = result.frames[-1].bonds
+    n_polar_contacts = sum(1 for b in final_bonds if b.kind == "polar")
+    n_lateral_contacts = sum(1 for b in final_bonds if b.kind == "lateral")
     print(
-        f"最終フレーム: 結合 {len(final_bonds)} 本"
-        f"（極 {sum(1 for b in final_bonds if b.kind == 'polar')},"
-        f" 側面 {sum(1 for b in final_bonds if b.kind == 'lateral')}）"
+        f"最終フレーム: 接触 {len(final_bonds)} 箇所"
+        f"（極 {n_polar_contacts} 箇所, 側面 {n_lateral_contacts} 箇所）。"
+        f"結合数（分子対）に換算すると"
+        f" 極 {n_polar_contacts * result.polar_bond_count:.0f} 対,"
+        f" 側面 {n_lateral_contacts * result.side_bond_count:.0f} 対"
+        f"（1箇所あたり 極 {result.polar_bond_count:.1f} 対, 側面 {result.side_bond_count:.1f} 対）"
     )
 
     output = args.output or (

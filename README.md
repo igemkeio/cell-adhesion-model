@@ -90,7 +90,7 @@ python3 scripts/simulate_chain_formation.py --scenario chain --shear-rate-per-s 
 
 ```bash
 python3 scripts/simulate_chain_formation.py --scenario chain --well-depth-um 1500 \
-    --total-time-s 1400 --n-cells 18 --box-size-um 20
+    --total-time-s 1400 --n-cells 18 --box-size-um 20 --frame-stride 290
 ```
 
 E. coli の浮遊密度は培地の浸透圧に依存して 1.08–1.16 g/cm³ の範囲で報告されて
