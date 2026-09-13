@@ -109,7 +109,7 @@ termの使い方など所々不自然なところありますが，用語集な�
   どこが一致し、どこがなぜ違うかを式のレベルで記録している。
 - **[docs/parameters.md](docs/parameters.md)** — 使用した文献値の一覧。
   値・単位・不確かさ・出典が対応表になっている。
-- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 14 個の仮定。
+- **[docs/assumptions.md](docs/assumptions.md)** — モデルが置いている 23 個の仮定（静的モデル14 + 時間発展シミュレーション9）。
   各仮定について、そう置いた根拠と、**もし破れていたら結果がどう変わるか**を併記。
 
 どちらも `adhesion/literature.py` と `adhesion/assumptions.py` から自動生成される
@@ -182,7 +182,8 @@ adhesion/
   literature.py    文献値。値・単位・不確かさ・出典を一体で保持
   assumptions.py   モデルが置く仮定。根拠と、破れた場合の影響つき
   geometry.py      接触幾何。表面の求積と、架橋しうる分子の数え上げ
-  model.py         発現量と局在から接着と形態を予測
+  model.py         発現量と局在から接着と形態を予測（時間を持たない）
+  dynamics.py      多数の細胞が時間とともに出会い、鎖・束へ育つ過程の時間発展
   shear.py         震盪培養での衝突頻度とせん断荷重
   kinetics.py      荷重下での結合寿命（別ペアの値による桁の見積もり）
 scripts/
@@ -190,11 +191,12 @@ scripts/
   run_scan.py      局在の掃引 → CSV
   make_figures.py  主要結果の図
   make_glossary_figure.py  用語の図解
+  simulate_chain_formation.py  鎖・束が時間とともにできる様子の動画
   export_docs.py   docs/ をコードから生成
-tests/             80 件。うち検証テストが文献との整合を式レベルで固定する
+tests/             144 件。うち検証テストが文献との整合を式レベルで固定する
 docs/              自動生成されるパラメータ表と仮定一覧
 references/        BibTeX
-results/           図とデータ
+results/           図とデータ（動画は results/animations/）
 ```
 
 ## 実行方法
@@ -202,11 +204,13 @@ results/           図とデータ
 ```bash
 pip install -r requirements.txt
 
-python3 -m unittest discover -s tests -t .   # 80 件
+python3 -m unittest discover -s tests -t .   # 144 件
 python3 scripts/validate.py                   # 文献値との照合
 python3 scripts/run_scan.py                   # 掃引 → results/data/
 python3 scripts/make_figures.py               # 図 → results/figures/
 python3 scripts/make_glossary_figure.py       # 用語の図解 → docs/figures/
+python3 scripts/simulate_chain_formation.py --scenario chain    # 鎖ができる動画
+python3 scripts/simulate_chain_formation.py --scenario uniform  # 束ができる動画（対照）
 python3 scripts/export_docs.py                # docs/ を再生成
 ```
 
@@ -220,10 +224,92 @@ predict(7300, 0.95, tip_width_um=0.10).morphology         # 鎖
 predict(7300, 0.95, 1.0, tip_width_um=0.10).morphology    # 二量体どまり
 ```
 
-## モデルの適用範囲
+## 時間発展シミュレーション（`adhesion.dynamics`）
+
+`adhesion.model` は「接触した2細胞がどちらの配置を取るか」という相対的な
+有利不利しか扱わない（仮定 A7）。`adhesion.dynamics` はこの制約を外し、
+多数の細胞が z=0 平面上をブラウン運動で動き回り、実際に出会い、不可逆に結合し、
+鎖・束へと育っていく過程を陽に時間発展させる。結合の数え方自体は静的モデルと
+共有し、新たに導入するのは「いつ・どの組み合わせで接触するか」という幾何と
+時間の部分だけである。細胞は剛体クラスタにまとめず各細胞が独立に拡散し、結合は
+有限の曲げ剛性を持つ柔軟なジョイントとして扱う。したがって鎖は棒のようにまっすぐ
+ではなく、実際の連鎖菌のように**しなり**、接触角度も平行に固定されず斜めの接合も
+生じる。
+
+```bash
+python3 scripts/simulate_chain_formation.py --scenario chain    # f_pole=0.95, tip_width=0.10 µm
+python3 scripts/simulate_chain_formation.py --scenario uniform  # 実測の一様分布（対照）
+
+# 震盪培養（平面クエット流）。仮想的な「もし振盪し続けたら」の条件。
+python3 scripts/simulate_chain_formation.py --scenario chain --shear-rate-per-s 200 \
+    --total-time-s 6 --n-cells 12 --box-size-um 16
+
+# 沈降（実際の凝集アッセイに対応）。まず小さめの液柱で試すことを勧める。
+python3 scripts/simulate_chain_formation.py --scenario chain --well-depth-um 1500 \
+    --total-time-s 1800 --n-cells 18 --box-size-um 20
+```
+
+接着が自発的には不可逆であること（k_off ≈ 0）を踏まえると、時間発展させた
+形態は熱力学的な有利不利ではなく、**「どちらの接触が先に成立するか」という
+経路依存の結果**になる（`docs/literature_findings.md` 参照）。母集団の密度・
+視野サイズ・総シミュレーション時間は較正できる経時データが文献にないため、
+「動画として見やすい」という基準で選んだ自由パラメータである。詳細な設計と
+新たに置いた仮定（A15–A23）は `adhesion/dynamics.py` の docstring と
+`docs/assumptions.md` を参照。
+
+### 震盪モード（`--shear-rate-per-s`）は実際のアッセイの条件ではない
+
+`shear_rate_per_s` を正の値にすると、`shear.py` と同じせん断速度で平面クエット流
+（流れ方向 x を周期境界、勾配方向 y を壁とする）を課す。細胞は決定論的な移流に
+加えて Jeffery (1922) の軌道式（A20、等価アスペクト比の回転楕円体近似）で回転し、
+流れに対して向きを変えながらタンブリングする。せん断荷重が破断力を超えた極結合
+（鎖の背骨）は切れる（A22）が、既存の見積もり（1結合あたりの荷重は破断力の
+1/56 程度）どおり、典型的な震盪速度ではまず発火しない（`tests/test_dynamics.py`
+で確認済み）。
+
+**この機能を作った後、実際の凝集アッセイの手順を調べたところ、震盪は凝集の形成
+過程には使われていないことが分かった。** Glass & Riedel-Kruse (2018)——この
+合成接着系の原論文——の凝集アッセイは、育成培養こそ 300 rpm で振盪するが、
+凝集そのものは「2菌株を短時間ボルテックスで混合 → 深底96穴プレートで**静置**
+→ 24時間後に上層の光学密度を測定」という手順である（要旨レベルで確認）。
+したがって震盪モードは実際に報告された条件ではなく、「もし凝集の間も振盪し
+続けたら」という仮想的な比較対象として残してある。**実際のアッセイに対応する
+のは次の沈降モードである。**
+
+**計算コストに注意。** 震盪では接触の持続時間 `shear.contact_duration_s(γ̇) = 1/γ̇`
+を取りこぼさないよう、時間刻み `dt` を自動的に縮める
+（`adhesion.dynamics._safe_dt_for_shear`）。γ̇=200–300 /s では dt が静置条件の
+数十分の1になり、同じ `--total-time-s` でも計算時間が大きく伸びる。まずは短い
+`--total-time-s`（数秒）と少ない `--n-cells` で試すこと。
+
+### 沈降モード（`--well-depth-um`）——実際の凝集アッセイに対応
+
+実際の凝集アッセイ（震盪なし・静置 24 時間・上層の光学密度で判定）を再現する。
+ボルテックスによる初期混合は、既存のランダムな初期配置がすでに表しているとみなし、
+別途シミュレートしない。静置で凝集した後、**大きい凝集塊ほど Stokes 則で速く
+沈み**（等価球半径は A16 と同じ n^(1/3) スケーリング）、鉛直方向に離れすぎた
+細胞どうしは結合できなくなる。`supernatant_fraction`（既定 0.25、原著の上部
+約25%）が実際に測定される「上層に残る割合」に対応し、動画では沈んだ細胞ほど
+淡く描かれる。
+
+E. coli の浮遊密度は培地の浸透圧に依存して 1.08–1.16 g/cm³ の範囲で報告されて
+いるが、個々の論文の全文は照合していないため、密度差は A18・A19 と同じ性格の
+実効パラメータとして扱う（A23）。深底96穴プレートの物理的な深さはおよそ
+30000–44000 µm だが、実際の充填量（液柱の高さ）は原著に明記されていないため、
+これも自由パラメータである。
+
+**計算コストとスケールに注意。** 実際のアッセイの時間スケール（24時間）を
+そのまま模すのは非現実的に遅い（単量体は1日でも深底プレートの液柱を沈みきら
+ない——これ自体が「小さい凝集塊が上清に残り続ける」という実際の測定原理と
+整合する）。デモとして現実的な計算時間で意味のある沈降を見せるには、
+`--well-depth-um` を実際の液柱より小さく取るか、`--total-time-s` を長めに取る
+必要がある。「大きい塊ほど速く沈む」という定性的な傾向（沈降速度が塊のサイズの
+2/3乗で増える）は、この縮尺の選び方によらず成り立つ。
+
+## モデルの適用範囲（静的モデル `adhesion.model`）
 
 このモデルは**接触した2細胞がどの配置を取るかという相対的な有利不利**を予測する。
-以下は扱っていない（仮定 A7）。
+以下は扱っていない（仮定 A7）。時間発展そのものは上記の `adhesion.dynamics` が扱う。
 
 - 衝突するまでの待ち時間、凝集にかかる時間、鎖長分布の時間発展
 - 接触後の細胞の回転による再配置
