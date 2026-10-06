@@ -22,12 +22,18 @@ termの使い方など所々不自然なところありますが，用語集な�
 |---|---|
 | ![鎖ができる様子](results/animations/chain.gif) | ![束ができる様子](results/animations/uniform.gif) |
 
-局在させると頭-尾の揃った有向な鎖（Ag 極=赤、Nb 極=青）が育つのに対し、
-一様分布では側面どうしが乱雑に固まった束になる。これは「主要な結果」の表と
-同じ結論を、実際に多数の細胞が出会っていく過程として示したものである。
-細胞は剛体クラスタにまとめず各細胞が独立に拡散し、結合は有限の曲げ剛性を
-持つ柔軟なジョイントとして扱う。したがって鎖は棒のようにまっすぐではなく、
-実際の連鎖菌のように**しなり**、接触角度も平行に固定されず斜めの接合も生じる。
+局在させると頭-尾の揃った有向な鎖が育つのに対し、一様分布では側面どうしが乱雑に
+固まった束になる。これは「主要な結果」の表と同じ結論を、実際に多数の細胞が出会って
+いく過程として示したものである。細胞は剛体クラスタにまとめず各細胞が独立に拡散し、
+結合は有限の曲げ剛性を持つ柔軟なジョイントとして扱う。したがって鎖は棒のように
+まっすぐではなく、実際の連鎖菌のように**しなり**、接触角度も平行に固定されず斜めの
+接合も生じる。
+
+**色の見方。** 細胞の塗りは、その細胞がもつ結合の種類を表す（**灰 = 結合なし、青 = 極結合
+だけをもつ、オレンジ = 側面結合を1本でももつ**）。● は Ag 極、○ は Nb 極。かたまり全体
+ではなく細胞ごとに塗るので、鎖の途中に側面接触が1本あっても、塗り替わるのはその2細胞
+だけで、鎖がほとんど青のまま見える。極 = 青、側面 = オレンジの配色は、全ての図・動画で
+共通（`scripts/figstyle.py`）。
 
 ```bash
 python3 scripts/simulate_chain_formation.py --scenario chain    # f_pole=0.95, tip_width=0.10 µm
@@ -51,7 +57,7 @@ docstring と `docs/assumptions.md` を参照。
 同じせん断速度で平面クエット流（流れ方向 x を周期境界、勾配方向 y を壁とする）
 を課す。細胞は決定論的な移流に加えて Jeffery (1922) の軌道式（A20、等価
 アスペクト比の回転楕円体近似）で回転し、流れに対して向きを変えながら
-タンブリングする（動画は流れ方向の周期境界をまたぐクラスタを影で示している）。
+タンブリングする。
 せん断荷重が破断力を超えた極結合（鎖の背骨）は切れる（A22）が、既存の見積もり
 （1結合あたりの荷重は破断力の1/56程度）どおり、典型的な震盪速度ではまず
 発火しない（`tests/test_dynamics.py` で確認済み）。
@@ -67,13 +73,21 @@ docstring と `docs/assumptions.md` を参照。
 
 ```bash
 python3 scripts/simulate_chain_formation.py --scenario chain --shear-rate-per-s 200 \
-    --total-time-s 6 --n-cells 12 --box-size-um 16
+    --total-time-s 6 --n-cells 12 --box-size-um 16 --frame-interval-s 0.0125
 ```
+
+**動画は群を追う視点で描いている。** 震盪では細胞が毎秒数百 µm で流れ、固定した視点では
+見づらい。そこで、総時間の最初の 1/5 の時点（この動画では 1.2 秒）で**最も長く結合している
+群**（その時点で切れていない結合のうち最も古い結合を含むかたまり）を決め、その重心が常に画面の
+中心に来る動く視点で描く。追跡している群（後から合流した細胞を含む）は通常の色、それ以外の細胞は
+薄く描く。座標は群の中心からの相対位置で、壁（y = 0 と y = 箱の大きさ）は斜線の帯で示す。
+`--focus largest` なら最初の 1/5 の時点で最大の群を追い、`--focus off` なら固定した視点
+（周期境界をまたぐクラスタを影で示す）に戻る。
 
 **計算コストに注意。** 震盪では接触の持続時間 `shear.contact_duration_s(γ̇) = 1/γ̇`
 を取りこぼさないよう、時間刻み `dt` を自動的に縮める
 （`adhesion.dynamics._safe_dt_for_shear`）。γ̇=200–300 /s では dt が静置条件の
-数十分の1になり、同じ `--total-time-s` でも計算時間が大きく伸びる。まずは短い
+数分の1になり、同じ `--total-time-s` でも計算時間が伸びる。まずは短い
 `--total-time-s`（数秒）と少ない `--n-cells` で試すこと。
 
 ### 沈降モード（`--well-depth-um`）——実際の凝集アッセイに対応
@@ -89,18 +103,27 @@ python3 scripts/simulate_chain_formation.py --scenario chain --shear-rate-per-s 
 （動画では沈んだ細胞ほど淡く描かれる）。
 
 ```bash
-python3 scripts/simulate_chain_formation.py --scenario chain --well-depth-um 1500 \
-    --total-time-s 1400 --n-cells 18 --box-size-um 20 --frame-stride 290
+python3 scripts/simulate_chain_formation.py --scenario chain --well-depth-um 600 \
+    --total-time-s 1400 --n-cells 18 --box-size-um 20 --frame-interval-s 5.8
 ```
 
 E. coli の浮遊密度は培地の浸透圧に依存して 1.08–1.16 g/cm³ の範囲で報告されて
 いるが、個々の論文の全文は照合していないため、密度差は A18・A19 と同じ性格の
 実効パラメータとして扱う（A23）。深底96穴プレートの物理的な深さはおよそ
 30000–44000 µm だが、実際の充填量（液柱の高さ）は原著に明記されていないため、
-これも自由パラメータである。上の動画は液柱を 1500 µm（実際の1/20程度）に
+これも自由パラメータである。上の動画は液柱を 600 µm（実際の1/50〜1/70程度）に
 縮め、模擬約23分（1400秒）で沈降が進む様子を見せている。「大きい塊ほど速く
 沈む」という定性的な傾向（沈降速度が塊のサイズの2/3乗で増える）は、この
 縮尺の選び方によらず成り立つ。
+
+> **液柱の深さを変えた経緯。** 以前の動画は液柱 1500 µm で、seed 0 の実行は早い段階で
+> 11 細胞の大きな鎖ができ、約 1100 秒でそれが沈んだ。時間刻みを収束した値（0.0025 s）に
+> 変えると、同じ seed でも最大 6 細胞ほどのかたまりまでしかできず、1500 µm では
+> 1400 秒の間に上層から出る細胞がなかった（6 細胞の沈降距離 326 µm < 上層 25% の
+> 375 µm）。そこで、シードは seed 0 のまま、液柱を 600 µm に縮めた。このとき 3 細胞以上の
+> かたまりは 1000 秒以内に上層から出る。どのくらいの大きさのかたまりまで育つかは
+> シードで大きく変わるので、この動画は沈降の仕組みの説明であって、凝集の速さの
+> 予測ではない。
 
 **「不可逆」の生物学的な妥当性には限界がある（`--k-off-per-s`）。** Costan et al.
 (2024) の Supplemental Note 4 原文を確認したところ、「k_off はゼロとみなすのが
@@ -136,7 +159,7 @@ k_off が数学的に厳密なゼロだと証明したものではない。し�
 
 ```bash
 python3 scripts/simulate_chain_formation.py --scenario chain --swim-speed-um-s 14.2 \
-    --total-time-s 20 --n-cells 16 --box-size-um 20
+    --total-time-s 20 --n-cells 16 --box-size-um 20 --frame-interval-s 0.14
 ```
 
 **この機能は既定で無効にしてあり、それには理由がある。** 当初は「実際の凝集は
@@ -162,6 +185,52 @@ python3 scripts/simulate_chain_formation.py --scenario chain --swim-speed-um-s 1
 挙げた株・条件の違い（AW405 対 MG1655、追跡用培地対アッセイ条件、3次元で
 測った旋回角度を2次元に転用）も踏まえ、定量的な予測としては使えない（詳細は
 A25）。
+
+### 細胞の形を変えたとき（円柱の長さ・半球の曲率）
+
+細胞の形も時間発展のパラメータにした（`DynamicsConfig(shape=CellShape.from_cylinder(円柱長, 半径))`）。
+半球の半径は円柱の半径と等しく、曲率 1/r は太さと切り離せないので、全長ではなく円柱長
+l_c を固定して半径 r を動かし、2つを独立な軸にしている。**形を指定しなければ、形を
+パラメータにする前と同じ計算になる**（旧既定の `dt = 0.02 s` を指定すれば、6つの運転モードで
+ビット単位で一致することを確認した）。
+
+**円柱長 l_c = 0.1 / 1.0（文献値）/ 3.0 µm**（局在。一様分布の対照は `shape_cylinder_uniform.gif`）
+
+![円柱長を変える](results/animations/shape_cylinder_localized.gif)
+
+**半径 r = 0.25 / 0.40（文献値）/ 0.60 µm、曲率 4.0 / 2.5 / 1.7 /µm**（局在。対照は `shape_radius_uniform.gif`）
+
+![曲率を変える](results/animations/shape_radius_localized.gif)
+
+動画は形ごとに「平均に最も近い1回の実行」で、統計ではない。画面の見方は
+[`docs/shape_movies.md`](docs/shape_movies.md)。統計（各条件20回）の結論:
+
+- **円柱が長いほど、局在させても極結合（鎖）の割合が下がり、束が増える。** 最初の10本の
+  うち極結合の割合は l_c = 0.1 → 1.0 → 3.0 µm で 0.82 → 0.68 → 0.51。結合数を既定形状に
+  固定しても同じ曲線になるので、結合数ではなく細胞の出会い方（衝突の幾何）による。
+  箱の取り方・回転拡散の見積もりを変えても向きは変わらない。
+- **半球の曲率（半径）の効果は、細い側では極結合が減る向きで一貫するが、太い側は置き方で
+  変わる。** 半径 0.25 µm では極結合の割合が 0.50（文献値の半径で 0.68）に下がり、その大部分は
+  結合数の低下による（結合数を固定すると 0.63）。半径 0.8 µm では、全て反映で 0.68（文献値と同じ）、
+  結合数を固定すると 0.53、置き方で 0.52–0.68 に散る。半径を太くして鎖が増える根拠はない。
+  凝集の速さの形依存性は、箱の取り方で逆転する。
+- 一様分布は形によらず束になる。
+
+詳細・表・限界・手法上の注意（時間刻みの収束、混み具合の対照）は
+[`docs/shape_scan.md`](docs/shape_scan.md)、図は `results/figures/shape_scan_*.png`。
+
+```bash
+python3 scripts/run_shape_scan.py dynamic --seeds 20 --jobs 8   # 形の掃引（数時間、再開可能）
+python3 scripts/plot_shape_scan.py                               # 図と集計表
+python3 scripts/simulate_shape_comparison.py --scan cylinder     # 動画（--scan radius で曲率）
+python3 scripts/export_shape_docs.py                             # docs/shape_scan.md と docs/shape_movies.md
+```
+
+**時間刻みについて。** 旧既定の `dt = 0.02 s` は側面結合を過大に数えていた（文献値の形で約 15%）。
+収束した `dt = 0.0025 s` を既定にし、この README の動画と数値は全て作り直した
+（沈降の動画は、液柱を 600 µm に変えた経緯を沈降の節に記した）。結合の構成比は収束しているが、
+半径 0.25 µm のような細い形では、単量体の数（凝集の速さ）にまだ残差がありうる
+（`docs/shape_scan.md` の「時間刻みの収束」）。δ が大きすぎる形には `DynamicsConfig` が警告する。
 
 ## 主要な結果
 
@@ -335,6 +404,7 @@ adhesion/
   literature.py    文献値。値・単位・不確かさ・出典を一体で保持
   assumptions.py   モデルが置く仮定。根拠と、破れた場合の影響つき
   geometry.py      接触幾何。表面の求積と、架橋しうる分子の数え上げ
+  shape.py         細胞の形（円柱の長さ・半球の曲率半径）。静的モデルと時間発展が共有
   model.py         発現量と局在から接着と形態を予測（時間を持たない）
   dynamics.py      多数の細胞が時間とともに出会い、鎖・束へ育つ過程の時間発展
   shear.py         震盪培養での衝突頻度とせん断荷重
@@ -345,8 +415,11 @@ scripts/
   make_figures.py  主要結果の図
   make_glossary_figure.py  用語の図解
   simulate_chain_formation.py  鎖・束が時間とともにできる様子の動画
+  run_shape_scan.py            細胞の形（円柱長×半径）の掃引 → CSV
+  plot_shape_scan.py           形の掃引の図と集計表
+  simulate_shape_comparison.py 形ごとの鎖・束の形成を並べた動画
   export_docs.py   docs/ をコードから生成
-tests/             144 件。うち検証テストが文献との整合を式レベルで固定する
+tests/             210 件。うち検証テストが文献との整合を式レベルで固定する
 docs/              自動生成されるパラメータ表と仮定一覧
 references/        BibTeX
 results/           図とデータ（動画は results/animations/）
@@ -357,7 +430,7 @@ results/           図とデータ（動画は results/animations/）
 ```bash
 pip install -r requirements.txt
 
-python3 -m unittest discover -s tests -t .   # 144 件
+python3 -m unittest discover -s tests -t .   # 210 件
 python3 scripts/validate.py                   # 文献値との照合
 python3 scripts/run_scan.py                   # 掃引 → results/data/
 python3 scripts/make_figures.py               # 図 → results/figures/

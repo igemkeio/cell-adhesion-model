@@ -1,0 +1,60 @@
+{
+  "movie": "radius",
+  "scenario": "uniform",
+  "seed_rule": "representative",
+  "box_mode": "area",
+  "n_cells": 24,
+  "total_time_s": 60.0,
+  "fps": 15,
+  "n_frames": 121,
+  "panels": [
+    {
+      "cylinder_um": 1.0,
+      "radius_um": 0.25,
+      "length_um": 1.5,
+      "curvature_per_um": 4.0,
+      "seed": 15,
+      "box_um": 14.62,
+      "dt_s": 0.0025,
+      "polar_bonds_per_contact": 9.86,
+      "side_bonds_per_contact": 149.65,
+      "final_polar_contacts": 1,
+      "final_lateral_contacts": 25,
+      "final_monomers": 0,
+      "final_clusters": 1,
+      "final_largest_cluster": 24
+    },
+    {
+      "cylinder_um": 1.0,
+      "radius_um": 0.4,
+      "length_um": 1.8,
+      "curvature_per_um": 2.5,
+      "seed": 0,
+      "box_um": 20.0,
+      "dt_s": 0.0025,
+      "polar_bonds_per_contact": 8.21,
+      "side_bonds_per_contact": 99.83,
+      "final_polar_contacts": 1,
+      "final_lateral_contacts": 19,
+      "final_monomers": 0,
+      "final_clusters": 5,
+      "final_largest_cluster": 9
+    },
+    {
+      "cylinder_um": 1.0,
+      "radius_um": 0.6,
+      "length_um": 2.2,
+      "curvature_per_um": 1.6667,
+      "seed": 7,
+      "box_um": 26.75,
+      "dt_s": 0.0025,
+      "polar_bonds_per_contact": 6.75,
+      "side_bonds_per_contact": 68.07,
+      "final_polar_contacts": 0,
+      "final_lateral_contacts": 16,
+      "final_monomers": 4,
+      "final_clusters": 5,
+      "final_largest_cluster": 10
+    }
+  ]
+}
