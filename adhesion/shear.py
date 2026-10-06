@@ -53,8 +53,15 @@ def kolmogorov_length_um(dissipation_w_per_kg: float) -> float:
     return length_m * 1e6
 
 
-def chain_tension_pn(n_cells: int, shear_rate_per_s: float) -> float:
+def chain_tension_pn(
+    n_cells: int,
+    shear_rate_per_s: float,
+    cell_length_um: float | None = None,
+    cell_radius_um: float | None = None,
+) -> float:
     """せん断中の細胞鎖の中央にかかる張力（pN）。
+
+    cell_length_um / cell_radius_um を省略すると文献値の細胞寸法を使う。
 
     伸長方位に置かれた細長い剛体棒に対する slender-body 近似:
 
@@ -68,8 +75,12 @@ def chain_tension_pn(n_cells: int, shear_rate_per_s: float) -> float:
     if shear_rate_per_s < 0:
         raise ValueError("せん断速度は非負である必要があります")
 
-    chain_length_m = n_cells * _CELL_LENGTH_M
-    slenderness = chain_length_m / _CELL_DIAMETER_M
+    cell_length_m = _CELL_LENGTH_M if cell_length_um is None else cell_length_um * 1e-6
+    cell_diameter_m = (
+        _CELL_DIAMETER_M if cell_radius_um is None else 2.0 * cell_radius_um * 1e-6
+    )
+    chain_length_m = n_cells * cell_length_m
+    slenderness = chain_length_m / cell_diameter_m
     tension_n = (
         math.pi
         * DYNAMIC_VISCOSITY_PA_S

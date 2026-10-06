@@ -29,6 +29,7 @@ from .geometry import (
     polar_area_fraction,
     spherocylinder_surface,
 )
+from .shape import CellShape
 
 CELL_LENGTH_UM = float(lit.CELL_LENGTH)
 CELL_RADIUS_UM = float(lit.CELL_RADIUS)
@@ -38,7 +39,12 @@ RUPTURE_FORCE_PN = float(lit.RUPTURE_FORCE)
 #: プラスミドコピー数の非対称に対する補正係数（A4）。抗原側が律速になる。
 FUNCTIONAL_FRACTION = float(lit.COPY_NUMBER_CORRECTION)
 
+#: 既定の細胞形状。文献値（Costan et al. 2024）。`shape=None` と書いたときはこれを使う。
+DEFAULT_SHAPE = CellShape(CELL_LENGTH_UM, CELL_RADIUS_UM)
+
 #: 局在を操作しない場合の分布（A10）。Costan et al. (2024) の実測は一様。
+#: 細胞の形を変えると一様分布の f_pole も変わるので、既定形状以外では
+#: `uniform_f_pole(shape)` を使うこと。
 UNIFORM_F_POLE = polar_area_fraction(CELL_LENGTH_UM, CELL_RADIUS_UM)
 
 #: 結合が1本も成立しないとみなす下限。
@@ -48,16 +54,23 @@ MODEL_ASSUMPTIONS = uses(
     "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A10", "A11", "A12"
 )
 
-_SURFACE_CACHE: dict[int, SurfaceQuadrature] = {}
+_SURFACE_CACHE: dict[tuple[int, float, float], SurfaceQuadrature] = {}
 
 
-def cell_surface(n_points: int = 20000) -> SurfaceQuadrature:
-    """細胞表面の求積を返す（同じ解像度なら使い回す）。"""
-    if n_points not in _SURFACE_CACHE:
-        _SURFACE_CACHE[n_points] = spherocylinder_surface(
-            CELL_LENGTH_UM, CELL_RADIUS_UM, n_points
+def uniform_f_pole(shape: CellShape | None = None) -> float:
+    """その形の細胞で、局在させない一様分布にあたる f_pole（両極の面積割合）。"""
+    return (shape or DEFAULT_SHAPE).polar_area_fraction
+
+
+def cell_surface(n_points: int = 20000, shape: CellShape | None = None) -> SurfaceQuadrature:
+    """細胞表面の求積を返す（同じ形・解像度なら使い回す）。"""
+    shape = shape or DEFAULT_SHAPE
+    key = (n_points, shape.length_um, shape.radius_um)
+    if key not in _SURFACE_CACHE:
+        _SURFACE_CACHE[key] = spherocylinder_surface(
+            shape.length_um, shape.radius_um, n_points
         )
-    return _SURFACE_CACHE[n_points]
+    return _SURFACE_CACHE[key]
 
 
 class Morphology(Enum):
@@ -136,6 +149,7 @@ def _pole_contact_bonds(
     surface: SurfaceQuadrature,
     molecules_on_pole: float,
     tip_width_um: float | None,
+    shape: CellShape,
 ) -> float:
     """指定した数の分子を載せた極どうしが接触したときの結合数。
 
@@ -154,7 +168,7 @@ def _pole_contact_bonds(
         tip_width_um=tip_width_um,
     )
     accessible = contactable_adhesins(
-        surface, counts, POSE_END_TO_END, CELL_LENGTH_UM, CELL_RADIUS_UM, BRIDGE_UM
+        surface, counts, POSE_END_TO_END, shape.length_um, shape.radius_um, BRIDGE_UM
     )
     return FUNCTIONAL_FRACTION * accessible
 
@@ -164,6 +178,7 @@ def _peak_density(
     f_pole: float,
     polar_split: float,
     tip_width_um: float | None,
+    shape: CellShape = DEFAULT_SHAPE,
 ) -> float:
     """極先端でのアドヘシン面密度（分子/µm²）。
 
@@ -173,7 +188,7 @@ def _peak_density(
 
     on_heavy_pole = n_total * f_pole * max(polar_split, 1.0 - polar_split)
     if tip_width_um is None:
-        return on_heavy_pole / (2 * math.pi * CELL_RADIUS_UM**2)
+        return on_heavy_pole / (2 * math.pi * shape.radius_um**2)
     return on_heavy_pole / (2 * math.pi * tip_width_um**2)
 
 
@@ -184,6 +199,7 @@ def predict(
     tip_width_um: float | None = None,
     n_points: int = 20000,
     distinct_adhesins_per_pole: bool = True,
+    shape: CellShape | None = None,
 ) -> AdhesionPrediction:
     """接着の予測を返す。
 
@@ -200,16 +216,23 @@ def predict(
         結合数そのものは変わらない。Ag と Nb を等量発現させれば、接合あたりの
         結合数は min(n_Ag, n_Nb) = N·f_pole/2 となり、同種を両極に置いた場合と
         一致するためである。変わるのは、どの極とどの極が結合できるかである。
+
+    shape
+        細胞の寸法。None なら文献値（l = 1.8 µm, r = 0.4 µm）。形を変えても
+        n_total と tip_width_um は変わらない（細胞あたりの分子数と先端での
+        絶対的な広がりを固定する）ので、表面密度は表面積に反比例して変わる。
+        一様分布を表したいときの f_pole は `uniform_f_pole(shape)`。
     """
 
     if not 0.5 <= polar_split <= 1.0:
         raise ValueError("polar_split は 0.5（対称）から 1.0（単極）で指定します")
 
-    surface = cell_surface(n_points)
+    shape = shape or DEFAULT_SHAPE
+    surface = cell_surface(n_points, shape)
 
     counts = adhesin_counts(surface, n_total, f_pole, polar_split, tip_width_um)
     side = FUNCTIONAL_FRACTION * contactable_adhesins(
-        surface, counts, POSE_SIDE_BY_SIDE, CELL_LENGTH_UM, CELL_RADIUS_UM, BRIDGE_UM
+        surface, counts, POSE_SIDE_BY_SIDE, shape.length_um, shape.radius_um, BRIDGE_UM
     )
 
     on_heavy = n_total * f_pole * polar_split
@@ -221,9 +244,11 @@ def predict(
         polar_split=polar_split,
         tip_width_um=tip_width_um,
         bonds_side_by_side=side,
-        bonds_heavy_pole=_pole_contact_bonds(surface, on_heavy, tip_width_um),
-        bonds_light_pole=_pole_contact_bonds(surface, on_light, tip_width_um),
-        peak_density_per_um2=_peak_density(n_total, f_pole, polar_split, tip_width_um),
+        bonds_heavy_pole=_pole_contact_bonds(surface, on_heavy, tip_width_um, shape),
+        bonds_light_pole=_pole_contact_bonds(surface, on_light, tip_width_um, shape),
+        peak_density_per_um2=_peak_density(
+            n_total, f_pole, polar_split, tip_width_um, shape
+        ),
         distinct_adhesins_per_pole=distinct_adhesins_per_pole,
     )
 
@@ -233,6 +258,7 @@ def morphology_threshold(
     polar_split: float = 0.5,
     n_points: int = 20000,
     tolerance: float = 1e-4,
+    shape: CellShape | None = None,
 ) -> float | None:
     """鎖が束に打ち勝つのに必要な f_pole を二分探索で求める。
 
@@ -244,16 +270,20 @@ def morphology_threshold(
     """
 
     probe_n = float(lit.ADHESINS_AT_MID_INDUCTION)
+    shape = shape or DEFAULT_SHAPE
 
     def pole_wins(f_pole: float) -> bool:
-        result = predict(probe_n, f_pole, polar_split, tip_width_um, n_points)
+        result = predict(
+            probe_n, f_pole, polar_split, tip_width_um, n_points, shape=shape
+        )
         return result.bonds_heavy_pole > result.bonds_side_by_side
 
-    low, high = UNIFORM_F_POLE, 1.0 - 1e-9
+    uniform = uniform_f_pole(shape)
+    low, high = uniform, 1.0 - 1e-9
     if not pole_wins(high):
         return None
     if pole_wins(low):
-        return UNIFORM_F_POLE
+        return uniform
     while high - low > tolerance:
         middle = 0.5 * (low + high)
         if pole_wins(middle):

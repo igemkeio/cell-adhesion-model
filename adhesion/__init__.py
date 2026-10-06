@@ -9,6 +9,7 @@
 `literature`   文献値。値・単位・不確かさ・出典を一体で持つ
 `assumptions`  モデルが置いている仮定。根拠と、破れた場合の影響つき
 `geometry`     接触幾何。表面の求積と、架橋しうる分子の数え上げ
+`shape`        細胞の形（円柱の長さ・半球の曲率半径）。静的モデルと時間発展が共有する
 `model`        発現量と局在から接着と形態を予測する（時間を持たない）
 `dynamics`     多数の細胞が時間とともに出会い、鎖・束へ育っていく過程の時間発展
 `shear`        震盪培養での衝突頻度とせん断荷重
@@ -23,7 +24,7 @@
 <Morphology.CHAIN: '鎖'>
 """
 
-from . import assumptions, dynamics, geometry, kinetics, literature, model, shear
+from . import assumptions, dynamics, geometry, kinetics, literature, model, shape, shear
 
 __all__ = [
     "assumptions",
@@ -32,6 +33,7 @@ __all__ = [
     "kinetics",
     "literature",
     "model",
+    "shape",
     "shear",
 ]
 

@@ -8,12 +8,26 @@ from __future__ import annotations
 
 import math
 import unittest
+import warnings
 
 import numpy as np
 
 from adhesion import dynamics as dyn
 from adhesion import model
 from adhesion import shear
+
+
+# 既定の dt（収束した 0.0025 s）は従来の 0.02 s より 8 倍細かく、シミュレーションを回すテストが
+# 8 倍遅くなる。ここで確かめるのは機構（貫入しない、結合の種類が局在で変わる、など）で、
+# 粗い dt でも成り立つので、速さのために従来の dt とフレーム間隔を明示する。収束した既定値は
+# tests/test_shape.py の TimeStepTests で確かめる。
+def _config(**kwargs):
+    kwargs.setdefault("dt_s", 0.02)
+    kwargs.setdefault("frame_stride", 25)
+    with warnings.catch_warnings():
+        # 粗い dt は承知のうえ（unittest は実行時に警告フィルタを上書きするので、ここで抑える）
+        warnings.simplefilter("ignore", dyn.CoarseTimeStepWarning)
+        return dyn.DynamicsConfig(**kwargs)
 
 
 class DiffusionCoefficientTests(unittest.TestCase):
@@ -94,7 +108,7 @@ class DirectBondFormationTests(unittest.TestCase):
     def test_head_to_tail_contact_forms_a_directed_polar_bond(self):
         positions, angles = self._touching_head_to_tail_positions()
         state = self._two_cell_state(positions, angles)
-        config = dyn.DynamicsConfig(n_cells=2, distinct_adhesins_per_pole=True)
+        config = _config(n_cells=2, distinct_adhesins_per_pole=True)
         rng = np.random.default_rng(0)
         for _ in range(200):  # 確率的な結合なので、十分な回数だけ試行する
             dyn._try_form_bond(state, 0, 1, config, 500.0, 500.0, 0.02, rng)
@@ -109,7 +123,7 @@ class DirectBondFormationTests(unittest.TestCase):
         x1 = dyn.HALF_CYLINDER_UM
         x2 = x1 + 2 * dyn.CELL_RADIUS_UM + dyn.BRIDGE_UM + dyn.HALF_CYLINDER_UM
         state = self._two_cell_state([[0.0, 0.0], [x2, 0.0]], [0.0, math.pi])
-        config = dyn.DynamicsConfig(n_cells=2, distinct_adhesins_per_pole=True)
+        config = _config(n_cells=2, distinct_adhesins_per_pole=True)
         rng = np.random.default_rng(0)
         for _ in range(200):
             dyn._try_form_bond(state, 0, 1, config, 500.0, 500.0, 0.02, rng)
@@ -119,7 +133,7 @@ class DirectBondFormationTests(unittest.TestCase):
         x1 = dyn.HALF_CYLINDER_UM
         x2 = x1 + 2 * dyn.CELL_RADIUS_UM + dyn.BRIDGE_UM + dyn.HALF_CYLINDER_UM
         state = self._two_cell_state([[0.0, 0.0], [x2, 0.0]], [0.0, math.pi])
-        config = dyn.DynamicsConfig(n_cells=2, distinct_adhesins_per_pole=False)
+        config = _config(n_cells=2, distinct_adhesins_per_pole=False)
         rng = np.random.default_rng(0)
         for _ in range(200):
             dyn._try_form_bond(state, 0, 1, config, 500.0, 500.0, 0.02, rng)
@@ -159,13 +173,13 @@ class SimulationIntegrationTests(unittest.TestCase):
     """`run` 全体を短時間だけ流し、基本的な不変量を確かめる。"""
 
     def test_bonds_only_accumulate_never_disappear(self):
-        config = dyn.DynamicsConfig(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
+        config = _config(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
         result = dyn.run(config)
         counts = [len(frame.bonds) for frame in result.frames]
         self.assertEqual(counts, sorted(counts))
 
     def test_cells_stay_within_the_box(self):
-        config = dyn.DynamicsConfig(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
+        config = _config(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
         result = dyn.run(config)
         last = result.frames[-1]
         self.assertTrue(np.all(last.positions >= 0.0))
@@ -173,7 +187,7 @@ class SimulationIntegrationTests(unittest.TestCase):
 
     def test_rejects_asymmetric_polar_split(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(polar_split=0.7)
+            _config(polar_split=0.7)
 
     def test_bonds_stay_near_bridge_length(self):
         """距離拘束が硬いので、結合長は架橋長付近に留まる（伸びきらない）。
@@ -184,7 +198,7 @@ class SimulationIntegrationTests(unittest.TestCase):
         その回帰を防ぐ。
         """
 
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=18, box_size_um=16.0, total_time_s=45.0, seed=1,
             f_pole=0.95, tip_width_um=0.10, frame_stride=10**9,
         )
@@ -205,7 +219,7 @@ class SimulationIntegrationTests(unittest.TestCase):
     def test_cells_do_not_deeply_interpenetrate(self):
         """接触点で作用する排除体積により、表面の深い食い込みが起きない。"""
 
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=18, box_size_um=16.0, total_time_s=45.0, seed=1,
             f_pole=0.95, tip_width_um=0.10, frame_stride=10**9,
         )
@@ -229,7 +243,7 @@ class LocalizationControlsMorphologyTests(unittest.TestCase):
 
     @staticmethod
     def _first_bond_kind(f_pole, tip_width_um, seed):
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=2,
             box_size_um=6.0,
             total_time_s=60.0,
@@ -254,7 +268,7 @@ class LocalizationControlsMorphologyTests(unittest.TestCase):
 
     @staticmethod
     def _final_polar_and_lateral(f_pole, tip_width_um, seed):
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=18, box_size_um=16.0, total_time_s=45.0,
             f_pole=f_pole, tip_width_um=tip_width_um, seed=seed, frame_stride=10**9,
         )
@@ -294,14 +308,14 @@ class LocalizationControlsMorphologyTests(unittest.TestCase):
 class ShearModeConfigTests(unittest.TestCase):
     def test_rejects_negative_shear_rate(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(shear_rate_per_s=-1.0)
+            _config(shear_rate_per_s=-1.0)
 
     def test_periodic_x_follows_shear_rate(self):
-        self.assertFalse(dyn.DynamicsConfig(shear_rate_per_s=0.0).periodic_x)
-        self.assertTrue(dyn.DynamicsConfig(shear_rate_per_s=100.0).periodic_x)
+        self.assertFalse(_config(shear_rate_per_s=0.0).periodic_x)
+        self.assertTrue(_config(shear_rate_per_s=100.0).periodic_x)
 
     def test_safe_dt_is_unchanged_when_quiescent(self):
-        config = dyn.DynamicsConfig(dt_s=0.02, shear_rate_per_s=0.0)
+        config = _config(dt_s=0.02, shear_rate_per_s=0.0)
         self.assertEqual(dyn._safe_dt_for_shear(config), 0.02)
 
     def test_safe_dt_shrinks_with_shear_rate(self):
@@ -311,7 +325,7 @@ class ShearModeConfigTests(unittest.TestCase):
         大きい dt のまま接触判定してしまい確率を過大評価してはならない。
         """
 
-        config = dyn.DynamicsConfig(dt_s=0.02, shear_rate_per_s=300.0)
+        config = _config(dt_s=0.02, shear_rate_per_s=300.0)
         safe_dt = dyn._safe_dt_for_shear(config)
         self.assertLess(safe_dt, config.dt_s)
         self.assertAlmostEqual(
@@ -429,14 +443,14 @@ class ShearIntegrationTests(unittest.TestCase):
     def test_quiescent_path_is_unaffected_by_shear_feature(self):
         """shear_rate_per_s=0（既定）は、震盪機能を追加する前とビット単位で同じ。"""
 
-        config = dyn.DynamicsConfig(n_cells=10, box_size_um=14.0, total_time_s=4.0, seed=2)
+        config = _config(n_cells=10, box_size_um=14.0, total_time_s=4.0, seed=2)
         result = dyn.run(config)
         last = result.frames[-1]
         self.assertTrue(np.all(last.positions[:, 0] >= 0.0))
         self.assertTrue(np.all(last.positions[:, 0] <= config.box_size_um))
 
     def test_shear_run_completes_and_stays_periodic_in_x(self):
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=6, box_size_um=10.0, total_time_s=0.1, seed=1, shear_rate_per_s=200.0,
             frame_stride=10**9,
         )
@@ -452,24 +466,24 @@ class ShearIntegrationTests(unittest.TestCase):
 
 class SettlingConfigTests(unittest.TestCase):
     def test_settling_disabled_by_default(self):
-        config = dyn.DynamicsConfig()
+        config = _config()
         self.assertFalse(config.settling_enabled)
 
     def test_settling_enabled_with_well_depth(self):
-        config = dyn.DynamicsConfig(well_depth_um=1000.0)
+        config = _config(well_depth_um=1000.0)
         self.assertTrue(config.settling_enabled)
 
     def test_rejects_non_positive_well_depth(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(well_depth_um=0.0)
+            _config(well_depth_um=0.0)
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(well_depth_um=-5.0)
+            _config(well_depth_um=-5.0)
 
     def test_rejects_invalid_supernatant_fraction(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(well_depth_um=1000.0, supernatant_fraction=0.0)
+            _config(well_depth_um=1000.0, supernatant_fraction=0.0)
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(well_depth_um=1000.0, supernatant_fraction=1.5)
+            _config(well_depth_um=1000.0, supernatant_fraction=1.5)
 
 
 class SettlingVelocityTests(unittest.TestCase):
@@ -508,7 +522,7 @@ class SettlingIntegrationTests(unittest.TestCase):
     """`run` を沈降モードで短く流し、基本的な不変量を確かめる。"""
 
     def test_depths_stay_non_negative_and_within_well(self):
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=10, box_size_um=14.0, total_time_s=3.0, seed=4, well_depth_um=50.0,
         )
         result = dyn.run(config)
@@ -524,7 +538,7 @@ class SettlingIntegrationTests(unittest.TestCase):
         沈み続ける。したがって完全に一致はしないが、その許容差は超えない。
         """
 
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=10, box_size_um=12.0, total_time_s=3.0, seed=1,
             f_pole=0.95, tip_width_um=0.10, well_depth_um=50.0,
         )
@@ -539,7 +553,7 @@ class SettlingIntegrationTests(unittest.TestCase):
     def test_vertically_separated_cells_do_not_bond(self):
         """鉛直方向に離れすぎた細胞は、横方向が近くても結合しない。"""
 
-        config = dyn.DynamicsConfig(n_cells=2, well_depth_um=1000.0)
+        config = _config(n_cells=2, well_depth_um=1000.0)
         gap = dyn.BRIDGE_UM
         x1 = dyn.HALF_CYLINDER_UM
         x2 = x1 + 2 * dyn.CELL_RADIUS_UM + gap + dyn.HALF_CYLINDER_UM
@@ -609,7 +623,7 @@ class SpontaneousDissociationTests(unittest.TestCase):
 
     def test_rejects_negative_k_off(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(k_off_per_s=-1.0)
+            _config(k_off_per_s=-1.0)
 
     def test_default_k_off_is_zero_and_never_dissociates(self):
         """既定（k_off=0）は、この機能を追加する前とビット単位で同じ挙動。"""
@@ -654,7 +668,7 @@ class SpontaneousDissociationTests(unittest.TestCase):
         不変量（A15）が壊れていないことを確かめる（回帰防止）。
         """
 
-        config = dyn.DynamicsConfig(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
+        config = _config(n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3)
         result = dyn.run(config)
         counts = [len(frame.bonds) for frame in result.frames]
         self.assertEqual(counts, sorted(counts))
@@ -662,7 +676,7 @@ class SpontaneousDissociationTests(unittest.TestCase):
     def test_quiescent_run_with_nonzero_k_off_can_lose_bonds(self):
         """`run()` に non-zero k_off を渡すと、結合数が減る場面がありうる。"""
 
-        config = dyn.DynamicsConfig(
+        config = _config(
             n_cells=12, box_size_um=14.0, total_time_s=15.0, seed=3,
             f_pole=0.95, tip_width_um=0.10, k_off_per_s=5.0,
         )
@@ -673,33 +687,33 @@ class SpontaneousDissociationTests(unittest.TestCase):
 
 class ActiveMotilityConfigTests(unittest.TestCase):
     def test_not_motile_by_default(self):
-        self.assertFalse(dyn.DynamicsConfig().motile)
+        self.assertFalse(_config().motile)
 
     def test_motile_when_swim_speed_positive(self):
-        self.assertTrue(dyn.DynamicsConfig(swim_speed_um_s=20.0).motile)
+        self.assertTrue(_config(swim_speed_um_s=20.0).motile)
 
     def test_rejects_negative_swim_speed(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(swim_speed_um_s=-1.0)
+            _config(swim_speed_um_s=-1.0)
 
     def test_rejects_non_positive_run_time(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(mean_run_time_s=0.0)
+            _config(mean_run_time_s=0.0)
 
     def test_rejects_non_positive_tumble_time(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(mean_tumble_time_s=-0.1)
+            _config(mean_tumble_time_s=-0.1)
 
     def test_rejects_turn_angle_out_of_range(self):
         with self.assertRaises(ValueError):
-            dyn.DynamicsConfig(tumble_turn_angle_deg=200.0)
+            _config(tumble_turn_angle_deg=200.0)
 
     def test_safe_dt_is_unchanged_when_not_motile(self):
-        config = dyn.DynamicsConfig(dt_s=0.02)
+        config = _config(dt_s=0.02)
         self.assertEqual(dyn._safe_dt_for_motility(config), 0.02)
 
     def test_safe_dt_shrinks_with_swim_speed(self):
-        config = dyn.DynamicsConfig(dt_s=0.02, swim_speed_um_s=20.0)
+        config = _config(dt_s=0.02, swim_speed_um_s=20.0)
         safe_dt = dyn._safe_dt_for_motility(config)
         self.assertLess(safe_dt, config.dt_s)
 
@@ -724,7 +738,7 @@ class ActiveMotilityTests(unittest.TestCase):
 
     def test_not_motile_does_nothing(self):
         state = self._single_free_cell_state()
-        config = dyn.DynamicsConfig(swim_speed_um_s=0.0)
+        config = _config(swim_speed_um_s=0.0)
         rng = np.random.default_rng(0)
         before = state.positions.copy()
         dyn._apply_active_motility(state, config, dt_s=0.02, rng=rng)
@@ -733,7 +747,7 @@ class ActiveMotilityTests(unittest.TestCase):
     def test_running_cell_advances_along_its_heading(self):
         state = self._single_free_cell_state(angle=0.0)
         state.running[0] = True
-        config = dyn.DynamicsConfig(
+        config = _config(
             swim_speed_um_s=20.0, mean_run_time_s=1e9, mean_tumble_time_s=0.1,
         )
         rng = np.random.default_rng(0)
@@ -746,7 +760,7 @@ class ActiveMotilityTests(unittest.TestCase):
     def test_tumbling_cell_does_not_translate(self):
         state = self._single_free_cell_state()
         state.running[0] = False
-        config = dyn.DynamicsConfig(
+        config = _config(
             swim_speed_um_s=20.0, mean_run_time_s=1.0, mean_tumble_time_s=1e9,
         )
         rng = np.random.default_rng(0)
@@ -765,7 +779,7 @@ class ActiveMotilityTests(unittest.TestCase):
             bonds=[dyn.Bond(0, 1, "polar", dyn.HALF_CYLINDER_UM, 0.0, -dyn.HALF_CYLINDER_UM, math.pi)],
         )
         state.running[:] = True
-        config = dyn.DynamicsConfig(swim_speed_um_s=20.0, mean_run_time_s=1e9)
+        config = _config(swim_speed_um_s=20.0, mean_run_time_s=1e9)
         rng = np.random.default_rng(0)
         before = state.positions.copy()
         dyn._apply_active_motility(state, config, dt_s=0.004, rng=rng)
@@ -780,7 +794,7 @@ class ActiveMotilityTests(unittest.TestCase):
         for trial in range(200):
             state = self._single_free_cell_state()
             state.running[0] = True
-            config = dyn.DynamicsConfig(
+            config = _config(
                 swim_speed_um_s=20.0, mean_run_time_s=mean_run_time_s, mean_tumble_time_s=1e9,
             )
             rng = np.random.default_rng(trial)
@@ -804,7 +818,7 @@ class ActiveMotilityTests(unittest.TestCase):
         n_steps = 250  # 1秒ぶん
         state_motile = self._single_free_cell_state()
         state_motile.running[0] = True
-        config_motile = dyn.DynamicsConfig(
+        config_motile = _config(
             swim_speed_um_s=20.0, mean_run_time_s=1e9, mean_tumble_time_s=0.1,
         )
         rng = np.random.default_rng(0)

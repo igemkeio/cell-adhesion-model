@@ -92,12 +92,13 @@
 が担う）。
 
 依存する仮定: A7（の時間発展への拡張）、A15、A16、A17、A18、A19、A20、A21、A22、
-A23、A24、A25。詳細は `adhesion.assumptions` を参照。
+A23、A24、A25、A26。詳細は `adhesion.assumptions` を参照。
 """
 
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -107,18 +108,28 @@ from . import literature as lit
 from . import model
 from . import shear
 from .assumptions import uses
+from .shape import CellShape
 
 DYNAMICS_ASSUMPTIONS = uses(
     "A5", "A7", "A8", "A9", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23",
-    "A24", "A25",
+    "A24", "A25", "A26",
 )
 
 # --------------------------------------------------------------------------
 # 幾何定数（`adhesion.model` と同じ細胞寸法を使う）
+#
+# ここにあるのは既定の細胞形状（文献値）での値である。形を変えて計算したいとき
+# は `DynamicsConfig(shape=CellShape(...))` で渡す。各関数は shape を省略すると
+# この既定値を使うので、形を指定しない限り従来とまったく同じ計算になる。
 # --------------------------------------------------------------------------
+DEFAULT_SHAPE = model.DEFAULT_SHAPE
 CELL_LENGTH_UM = model.CELL_LENGTH_UM
 CELL_RADIUS_UM = model.CELL_RADIUS_UM
 HALF_CYLINDER_UM = 0.5 * (CELL_LENGTH_UM - 2.0 * CELL_RADIUS_UM)
+#: 円柱部分の長さの下限（µm）。0 の極限（球）では線分が1点に潰れ、頭側・尾側の
+#: 区別がつかなくなる（`_closest_points_on_segments` が常に s = 0 を返す）ので、
+#: 時間発展では少しだけ円柱を残すことを要求する。
+MIN_CYLINDER_LENGTH_UM = 0.05
 BRIDGE_UM = model.BRIDGE_UM
 MIN_BONDS_FOR_CONTACT = model.MIN_BONDS_FOR_CONTACT
 
@@ -132,27 +143,57 @@ BondKind = Literal["polar", "lateral"]
 # --------------------------------------------------------------------------
 
 
-def _equivalent_sphere_radius_um() -> float:
-    """細胞（スフェロシリンダー）と同じ体積を持つ球の半径（µm）。"""
+def diffusion_coefficients(shape: CellShape) -> tuple[float, float]:
+    """その形の細胞の並進拡散係数（µm²/s）と回転拡散係数（rad²/s）。
 
-    r = CELL_RADIUS_UM
-    cylinder_length = CELL_LENGTH_UM - 2.0 * r
-    volume_um3 = (4.0 / 3.0) * math.pi * r**3 + math.pi * r**2 * cylinder_length
-    return (3.0 * volume_um3 / (4.0 * math.pi)) ** (1.0 / 3.0)
+    同体積の球に対する Stokes–Einstein（A16）。体積が同じなら形が違っても
+    同じ値になる——細長い棒の異方性（長軸方向に速く、回転は長さの3乗に反比例して
+    遅い）は含まれない。形を大きく変えるときはこの近似が最も怪しくなる（A26）。
+    """
+
+    a_m = shape.equivalent_sphere_radius_um * 1e-6
+    d_trans = (
+        shear.THERMAL_ENERGY_J / (6.0 * math.pi * shear.DYNAMIC_VISCOSITY_PA_S * a_m)
+    ) * 1e12
+    d_rot = shear.THERMAL_ENERGY_J / (
+        8.0 * math.pi * shear.DYNAMIC_VISCOSITY_PA_S * a_m**3
+    )
+    return d_trans, d_rot
 
 
-_A_EFF_UM = _equivalent_sphere_radius_um()
-_A_EFF_M = _A_EFF_UM * 1e-6
+#: 時間刻みの収束の目安。1 ステップの先端の移動量（並進＋回転）を半径で割った値 δ の上限。
+#: 実測（局在、20 秒時点、`scripts/check_time_step.py`）では、δ ≲ 0.4 で結合の構成比が収束し、
+#: δ = 0.5–0.55 では 10% 程度の偏りが残りうる（標準誤差 5% に埋もれる）。δ ≳ 0.7 では側面結合を
+#: 約 15% 過大に数える。明らかに粗い領域（δ がこの値を超える）に入る dt には警告する。
+STEP_DISPLACEMENT_LIMIT = 0.6
 
-#: 単体の並進拡散係数（µm^2/s）。kT / (6 π η a)。
-D_TRANS0_UM2_S = (
-    shear.THERMAL_ENERGY_J / (6.0 * math.pi * shear.DYNAMIC_VISCOSITY_PA_S * _A_EFF_M)
-) * 1e12
 
-#: 単体の回転拡散係数（rad^2/s）。kT / (8 π η a^3)。
-D_ROT0_RAD2_S = shear.THERMAL_ENERGY_J / (
-    8.0 * math.pi * shear.DYNAMIC_VISCOSITY_PA_S * _A_EFF_M**3
-)
+class CoarseTimeStepWarning(UserWarning):
+    """時間刻みが粗く、側面結合を過大に数える領域に入っている。"""
+
+
+def step_displacement_ratio(
+    shape: CellShape, dt_s: float, diffusion_scale: tuple[float, float] = (1.0, 1.0)
+) -> float:
+    """δ = [√(2 D_t dt) + (l/2) √(2 D_r dt)] / r。時間刻みの収束の目安（小さいほど細かい）。
+
+    ブラウン運動の1ステップで先端が動く距離が半径に対して大きいと、接触が1ステップの間に
+    起きて消える現象を取りこぼし、排除体積で押し戻された接触（側面接触に多い）を過大に数える。
+    """
+
+    d_trans, d_rot = diffusion_coefficients(shape)
+    d_trans *= diffusion_scale[0]
+    d_rot *= diffusion_scale[1]
+    return (
+        math.sqrt(2.0 * d_trans * dt_s) + 0.5 * shape.length_um * math.sqrt(2.0 * d_rot * dt_s)
+    ) / shape.radius_um
+
+
+_A_EFF_UM = DEFAULT_SHAPE.equivalent_sphere_radius_um
+
+#: 単体の並進拡散係数（µm^2/s）。kT / (6 π η a)。既定の細胞形状での値。
+#: 回転拡散係数（rad^2/s）。kT / (8 π η a^3)。
+D_TRANS0_UM2_S, D_ROT0_RAD2_S = diffusion_coefficients(DEFAULT_SHAPE)
 
 # --------------------------------------------------------------------------
 # 沈降（A23）。Glass & Riedel-Kruse (2018) の実際の凝集アッセイは、震盪ではなく
@@ -176,7 +217,7 @@ _DENSITY_DIFFERENCE_KG_M3 = (CELL_DENSITY_G_CM3 - MEDIUM_DENSITY_G_CM3) * 1000.0
 _GRAVITY_M_S2 = 9.81
 
 
-def _settling_velocity_um_s(cluster_size: int) -> float:
+def _settling_velocity_um_s(cluster_size: int, a_eff_um: float = _A_EFF_UM) -> float:
     """クラスタの沈降速度（µm/s、下向きを正）。Stokes 則。
 
     等価球半径は A16 の並進・回転拡散係数と同じ n^(1/3) スケーリングを使う。
@@ -188,7 +229,7 @@ def _settling_velocity_um_s(cluster_size: int) -> float:
     選別が起こる理由である。
     """
 
-    radius_um = _A_EFF_UM * cluster_size ** (1.0 / 3.0)
+    radius_um = a_eff_um * cluster_size ** (1.0 / 3.0)
     radius_m = radius_um * 1e-6
     velocity_m_s = (
         (2.0 / 9.0) * _DENSITY_DIFFERENCE_KG_M3 * _GRAVITY_M_S2 * radius_m**2
@@ -258,15 +299,40 @@ class DynamicsConfig:
     n_cells: int = 24
     box_size_um: float = 20.0
 
+    #: 細胞の形（円柱の長さ・半球の曲率）。既定は文献値（l = 1.8 µm, r = 0.4 µm）。
+    #: 形を変えても n_total（細胞あたりの分子数）と tip_width_um（先端での
+    #: 絶対的な広がり）は変わらないので、表面密度は表面積に反比例して変わる。
+    #: 局在させない一様分布の f_pole は `model.uniform_f_pole(shape)`（形で変わる）。
+    shape: CellShape = DEFAULT_SHAPE
+
+    #: 診断用。(polar_bond_count, side_bond_count) を直接与え、`model.predict` が
+    #: 形から計算する値を上書きする。形が効く経路は「アドヘシンの接触幾何（結合数）」と
+    #: 「細胞どうしの衝突幾何」の2つあるので、片方だけ変えて切り分けたいときに使う
+    #: （例: 形は変えるが結合数は既定形状の値に固定する）。通常の計算では None のまま。
+    bond_counts_override: tuple[float, float] | None = None
+
+    #: 診断用。等価球近似（A16, A26）の並進・回転拡散係数に掛ける倍率 (並進, 回転)。
+    #: 細長い棒の回転拡散は等価球より遅いので、円柱を長くした細胞で結果が拡散係数の
+    #: 見積もりにどれだけ依存するかを調べるために使う。通常は (1, 1) のまま。
+    diffusion_scale: tuple[float, float] = (1.0, 1.0)
+
     n_total: float = float(lit.ADHESINS_AT_MID_INDUCTION)
     f_pole: float = 0.95
     polar_split: float = 0.5
     tip_width_um: float | None = 0.10
     distinct_adhesins_per_pole: bool = True
 
-    dt_s: float = 0.02
+    #: 時間刻み（s）。旧既定の 0.02 s は側面結合を過大に数える領域にあったので、収束した値にした。
+    #: 文献値の形・局在・20 秒時点の側面結合数は、dt = 0.02 / 0.01 / 0.005 / 0.0025 s で
+    #: 7.00 / 6.85 / 6.12 / 6.05（40 回の平均、標準誤差 0.3）、極結合の割合は 0.555 / 0.579 /
+    #: 0.597 / 0.604 で、0.005 s 以下で一致する。`scripts/check_time_step.py` で再現できる。
+    #: 半径が小さい（細い）細胞は拡散が速く、より細かい dt が要る。半径 0.25 µm（円柱 1.0 µm）では、
+    #: 0.0025 s で結合の構成比は 0.00125 s と一致するが、単量体の数はまだ動く（凝集の速さに残差）。
+    #: `step_displacement_ratio` が `STEP_DISPLACEMENT_LIMIT` を超えると警告する。
+    dt_s: float = 0.0025
     total_time_s: float = 120.0
-    frame_stride: int = 25
+    #: 何ステップごとにフレームを記録するか。既定は 200 ステップ = 0.5 s。
+    frame_stride: int = 200
 
     #: 震盪培養のせん断速度（1/s）。0（既定）なら静置・拡散のみ。>0 にすると
     #: x 方向を周期境界とした平面クエット流（A21）を課し、細胞は shear.py と
@@ -342,8 +408,15 @@ class DynamicsConfig:
             )
         if self.n_cells < 2:
             raise ValueError("n_cells は2以上である必要があります")
-        if self.box_size_um <= CELL_LENGTH_UM:
+        if self.dt_s <= 0.0:
+            raise ValueError("dt_s は正である必要があります")
+        if self.box_size_um <= self.shape.length_um:
             raise ValueError("box_size_um は細胞長より十分大きい必要があります")
+        if self.shape.cylinder_length_um < MIN_CYLINDER_LENGTH_UM:
+            raise ValueError(
+                f"円柱部分の長さは {MIN_CYLINDER_LENGTH_UM} µm 以上である必要があります"
+                "（球の極限では頭側・尾側の区別がつかない）"
+            )
         if self.shear_rate_per_s < 0.0:
             raise ValueError("shear_rate_per_s は非負である必要があります")
         if self.well_depth_um is not None and self.well_depth_um <= 0.0:
@@ -352,6 +425,20 @@ class DynamicsConfig:
             raise ValueError("supernatant_fraction は 0 より大きく 1 以下である必要があります")
         if self.k_off_per_s < 0.0:
             raise ValueError("k_off_per_s は非負である必要があります")
+        if self.bond_counts_override is not None and min(self.bond_counts_override) < 0.0:
+            raise ValueError("bond_counts_override は非負である必要があります")
+        if min(self.diffusion_scale) <= 0.0:
+            raise ValueError("diffusion_scale は正である必要があります")
+        effective_dt = min(_safe_dt_for_shear(self), _safe_dt_for_motility(self))
+        ratio = step_displacement_ratio(self.shape, effective_dt, self.diffusion_scale)
+        if ratio > STEP_DISPLACEMENT_LIMIT:
+            warnings.warn(
+                f"時間刻み dt = {effective_dt:.4g} s は、この形（{self.shape.describe()}）には粗い"
+                f"（δ = {ratio:.2f} > {STEP_DISPLACEMENT_LIMIT}）。側面結合を過大に数えるおそれが"
+                "ある。dt を小さくすること。",
+                CoarseTimeStepWarning,
+                stacklevel=3,
+            )
         if self.swim_speed_um_s < 0.0:
             raise ValueError("swim_speed_um_s は非負である必要があります")
         if self.mean_run_time_s <= 0.0:
@@ -455,13 +542,17 @@ class SimulationResult:
 
 
 def attachment_point(
-    position: np.ndarray, theta: float, axial: float, delta: float
+    position: np.ndarray,
+    theta: float,
+    axial: float,
+    delta: float,
+    radius_um: float = CELL_RADIUS_UM,
 ) -> np.ndarray:
     """付着点の実座標（µm）。中心軸上の位置 + 半径方向へのオフセット。"""
 
     axis = _unit_vector(theta)
     radial = _unit_vector(theta + delta)
-    return position + axial * axis + CELL_RADIUS_UM * radial
+    return position + axial * axis + radius_um * radial
 
 
 def _closest_points_on_segments(
@@ -508,9 +599,11 @@ def _closest_points_on_segments(
     return p1, p2, s, t
 
 
-def _segment_endpoints(position: np.ndarray, theta: float) -> tuple[np.ndarray, np.ndarray]:
+def _segment_endpoints(
+    position: np.ndarray, theta: float, half_cylinder_um: float = HALF_CYLINDER_UM
+) -> tuple[np.ndarray, np.ndarray]:
     axis = _unit_vector(theta)
-    return position - HALF_CYLINDER_UM * axis, position + HALF_CYLINDER_UM * axis
+    return position - half_cylinder_um * axis, position + half_cylinder_um * axis
 
 
 def _classify_contact_region(
@@ -542,9 +635,10 @@ def _classify_contact_region(
 
 def _initial_state(config: DynamicsConfig, rng: np.random.Generator) -> SimulationState:
     n = config.n_cells
+    shape = config.shape
     positions = np.zeros((n, 2))
     angles = rng.uniform(0.0, 2.0 * math.pi, size=n)
-    margin = HALF_CYLINDER_UM + CELL_RADIUS_UM
+    margin = shape.half_cylinder_um + shape.radius_um
     low, high = margin, config.box_size_um - margin
 
     placed: list[np.ndarray] = []
@@ -554,10 +648,10 @@ def _initial_state(config: DynamicsConfig, rng: np.random.Generator) -> Simulati
             candidate = rng.uniform(low, high, size=2)
             ok = True
             for other_pos, other_theta in zip(placed, placed_angles):
-                a0, a1 = _segment_endpoints(candidate, angles[k])
-                b0, b1 = _segment_endpoints(other_pos, other_theta)
+                a0, a1 = _segment_endpoints(candidate, angles[k], shape.half_cylinder_um)
+                b0, b1 = _segment_endpoints(other_pos, other_theta, shape.half_cylinder_um)
                 p1, p2, _, _ = _closest_points_on_segments(a0, a1, b0, b1)
-                if float(np.linalg.norm(p1 - p2)) < 2.2 * CELL_RADIUS_UM:
+                if float(np.linalg.norm(p1 - p2)) < 2.2 * shape.radius_um:
                     ok = False
                     break
             if ok:
@@ -577,13 +671,16 @@ def _initial_state(config: DynamicsConfig, rng: np.random.Generator) -> Simulati
     return SimulationState(positions, angles, head_free, tail_free, [])
 
 
-def _surface_gap(state: SimulationState, i: int, j: int) -> float:
+def _surface_gap(
+    state: SimulationState, i: int, j: int, shape: CellShape = DEFAULT_SHAPE
+) -> float:
     """細胞 i, j の表面間ギャップ（µm）。負なら貫入。"""
 
-    a0, a1 = _segment_endpoints(state.positions[i], state.angles[i])
-    b0, b1 = _segment_endpoints(state.positions[j], state.angles[j])
+    hc = shape.half_cylinder_um
+    a0, a1 = _segment_endpoints(state.positions[i], state.angles[i], hc)
+    b0, b1 = _segment_endpoints(state.positions[j], state.angles[j], hc)
     p1, p2, _, _ = _closest_points_on_segments(a0, a1, b0, b1)
-    return float(np.linalg.norm(p2 - p1)) - 2.0 * CELL_RADIUS_UM
+    return float(np.linalg.norm(p2 - p1)) - 2.0 * shape.radius_um
 
 
 def _wrap_to_pi(angle: float) -> float:
@@ -635,7 +732,9 @@ def _shear_flow_velocity_x(
     return shear_rate_per_s * (y_um - 0.5 * box_size_um)
 
 
-def _jeffery_rotation_rate(theta: np.ndarray, shear_rate_per_s: float) -> np.ndarray:
+def _jeffery_rotation_rate(
+    theta: np.ndarray, shear_rate_per_s: float, aspect_ratio: float = _ASPECT_RATIO
+) -> np.ndarray:
     """単純せん断中の細長い粒子の回転角速度（rad/s）。Jeffery (1922) の軌道式。
 
     厳密には回転楕円体に対する式であり、スフェロシリンダーを等価アスペクト比
@@ -643,7 +742,7 @@ def _jeffery_rotation_rate(theta: np.ndarray, shear_rate_per_s: float) -> np.nda
     遅く、垂直付近で速く回転する「タンブリング」を再現する。
     """
 
-    r = _ASPECT_RATIO
+    r = aspect_ratio
     return (shear_rate_per_s / (r * r + 1.0)) * (
         np.cos(theta) ** 2 + r * r * np.sin(theta) ** 2
     )
@@ -658,7 +757,12 @@ def _apply_shear_drift(state: SimulationState, config: DynamicsConfig, dt_s: flo
         _shear_flow_velocity_x(state.positions[:, 1], config.box_size_um, config.shear_rate_per_s)
         * dt_s
     )
-    state.angles += _jeffery_rotation_rate(state.angles, config.shear_rate_per_s) * dt_s
+    state.angles += (
+        _jeffery_rotation_rate(
+            state.angles, config.shear_rate_per_s, config.shape.aspect_ratio
+        )
+        * dt_s
+    )
 
 
 #: せん断中の接触持続時間 `shear.contact_duration_s` (≈ 1/γ̇) に対して、
@@ -695,7 +799,7 @@ def _safe_dt_for_motility(config: DynamicsConfig) -> float:
 
     if not config.motile:
         return config.dt_s
-    safe_dt = _MOTILITY_DT_SAFETY_FACTOR * CELL_RADIUS_UM / config.swim_speed_um_s
+    safe_dt = _MOTILITY_DT_SAFETY_FACTOR * config.shape.radius_um / config.swim_speed_um_s
     return min(config.dt_s, safe_dt)
 
 
@@ -720,6 +824,7 @@ def _solve_distance(
     target_um: float,
     stiffness: float,
     repulsive_only: bool,
+    inv_rot: float = _INV_ROT,
 ) -> None:
     """2つの物体固定点の距離を target に近づける位置ベース拘束。
 
@@ -746,15 +851,21 @@ def _solve_distance(
     r_j = point_j - ref_j
     cross_i = _cross2(r_i, normal)
     cross_j = _cross2(r_j, normal)
-    weight = 2.0 + _INV_ROT * (cross_i * cross_i + cross_j * cross_j)
+    weight = 2.0 + inv_rot * (cross_i * cross_i + cross_j * cross_j)
     lam = stiffness * error / weight
     state.positions[i] += lam * normal
-    state.angles[i] += _INV_ROT * lam * cross_i
+    state.angles[i] += inv_rot * lam * cross_i
     state.positions[j] -= lam * normal
-    state.angles[j] -= _INV_ROT * lam * cross_j
+    state.angles[j] -= inv_rot * lam * cross_j
 
 
-def _brownian_step(state: SimulationState, dt_s: float, rng: np.random.Generator) -> None:
+def _brownian_step(
+    state: SimulationState,
+    dt_s: float,
+    rng: np.random.Generator,
+    d_trans_um2_s: float = D_TRANS0_UM2_S,
+    d_rot_rad2_s: float = D_ROT0_RAD2_S,
+) -> None:
     """各細胞を独立にブラウン運動させる（自由排水近似・非剛体、A16）。
 
     結合した細胞も剛体としてまとめて動かすのではなく、それぞれが単体の拡散係数で
@@ -763,8 +874,8 @@ def _brownian_step(state: SimulationState, dt_s: float, rng: np.random.Generator
     """
 
     n = state.positions.shape[0]
-    state.positions += math.sqrt(2.0 * D_TRANS0_UM2_S * dt_s) * rng.normal(size=(n, 2))
-    state.angles += math.sqrt(2.0 * D_ROT0_RAD2_S * dt_s) * rng.normal(size=n)
+    state.positions += math.sqrt(2.0 * d_trans_um2_s * dt_s) * rng.normal(size=(n, 2))
+    state.angles += math.sqrt(2.0 * d_rot_rad2_s * dt_s) * rng.normal(size=n)
 
 
 def _resolve_constraints(
@@ -773,6 +884,7 @@ def _resolve_constraints(
     box_size_um: float,
     iterations: int,
     periodic_x: bool = False,
+    shape: CellShape = DEFAULT_SHAPE,
 ) -> None:
     """結合・排除体積・壁の拘束を、位置ベースの反復緩和で満たす。
 
@@ -790,7 +902,10 @@ def _resolve_constraints(
     震盪モードを導入する前とまったく同じ計算になる。
     """
 
-    margin = HALF_CYLINDER_UM + CELL_RADIUS_UM
+    hc = shape.half_cylinder_um
+    radius = shape.radius_um
+    inv_rot = 1.0 / shape.rotational_inertia_um2
+    margin = hc + radius
     for _ in range(iterations):
         # (1) 結合の距離拘束（付着点で作用させ、並進＋回転で満たす）。
         for bond in state.bonds:
@@ -798,13 +913,16 @@ def _resolve_constraints(
                 state.positions[bond.i], state.positions[bond.j], box_size_um, periodic_x
             )
             p_i = attachment_point(
-                state.positions[bond.i], state.angles[bond.i], bond.axial_i, bond.delta_i
+                state.positions[bond.i], state.angles[bond.i], bond.axial_i, bond.delta_i,
+                radius,
             )
-            p_j = attachment_point(pos_j, state.angles[bond.j], bond.axial_j, bond.delta_j)
+            p_j = attachment_point(
+                pos_j, state.angles[bond.j], bond.axial_j, bond.delta_j, radius
+            )
             _solve_distance(
                 state, bond.i, bond.j, p_i, p_j,
                 state.positions[bond.i], pos_j,
-                BRIDGE_UM, BOND_DISTANCE_STIFFNESS, False,
+                BRIDGE_UM, BOND_DISTANCE_STIFFNESS, False, inv_rot,
             )
 
             # (2) 曲げ拘束（柔らかめ）：相対角を成立時の値へゆるく戻す。
@@ -818,15 +936,15 @@ def _resolve_constraints(
         # 排除体積（接触点で作用させ、交差した棒どうしが回転して離れる）。
         for i, j in candidate_pairs:
             pos_j = _image_of_j(state.positions[i], state.positions[j], box_size_um, periodic_x)
-            a0, a1 = _segment_endpoints(state.positions[i], state.angles[i])
-            b0, b1 = _segment_endpoints(pos_j, state.angles[j])
+            a0, a1 = _segment_endpoints(state.positions[i], state.angles[i], hc)
+            b0, b1 = _segment_endpoints(pos_j, state.angles[j], hc)
             p1, p2, _, _ = _closest_points_on_segments(a0, a1, b0, b1)
-            if float(np.linalg.norm(p2 - p1)) - 2.0 * CELL_RADIUS_UM >= 0.0:
+            if float(np.linalg.norm(p2 - p1)) - 2.0 * radius >= 0.0:
                 continue
             _solve_distance(
                 state, i, j, p1, p2,
                 state.positions[i], pos_j,
-                2.0 * CELL_RADIUS_UM, EXCLUSION_STIFFNESS, True,
+                2.0 * radius, EXCLUSION_STIFFNESS, True, inv_rot,
             )
 
         # 壁。周期境界にした軸（x）は壁で挟まない。
@@ -895,15 +1013,16 @@ def _bond_decision(
     細胞どうしは物理的に接触できないため、その時点で判定を打ち切る。
     """
 
+    shape = config.shape
     if config.settling_enabled:
-        if abs(float(state.depth_um[i] - state.depth_um[j])) > VERTICAL_CONTACT_GAP_UM:
+        if abs(float(state.depth_um[i] - state.depth_um[j])) > 2.0 * shape.radius_um:
             return None
 
     pos_j = _image_of_j(state.positions[i], state.positions[j], config.box_size_um, config.periodic_x)
-    a0, a1 = _segment_endpoints(state.positions[i], state.angles[i])
-    b0, b1 = _segment_endpoints(pos_j, state.angles[j])
+    a0, a1 = _segment_endpoints(state.positions[i], state.angles[i], shape.half_cylinder_um)
+    b0, b1 = _segment_endpoints(pos_j, state.angles[j], shape.half_cylinder_um)
     p1, p2, s, t = _closest_points_on_segments(a0, a1, b0, b1)
-    gap = float(np.linalg.norm(p1 - p2)) - 2.0 * CELL_RADIUS_UM
+    gap = float(np.linalg.norm(p1 - p2)) - 2.0 * shape.radius_um
     if gap > BOND_CAPTURE_GAP_UM:
         return None
 
@@ -946,6 +1065,7 @@ def _record_bond(
     p2: np.ndarray,
     s: float,
     t: float,
+    shape: CellShape = DEFAULT_SHAPE,
 ) -> bool:
     """いまの接触配置のまま結合を記録する（スナップしない）。
 
@@ -958,22 +1078,23 @@ def _record_bond(
     """
 
     # 付着点を現在の接触からローカル座標で求める。
+    hc = shape.half_cylinder_um
     if region_i == "head":
-        axial_i, delta_i = HALF_CYLINDER_UM, 0.0
+        axial_i, delta_i = hc, 0.0
     elif region_i == "tail":
-        axial_i, delta_i = -HALF_CYLINDER_UM, math.pi
+        axial_i, delta_i = -hc, math.pi
     else:
         normal_i = p2 - p1
-        axial_i = -HALF_CYLINDER_UM + s * (2.0 * HALF_CYLINDER_UM)
+        axial_i = -hc + s * (2.0 * hc)
         delta_i = math.atan2(normal_i[1], normal_i[0]) - float(state.angles[i])
 
     if region_j == "head":
-        axial_j, delta_j = HALF_CYLINDER_UM, 0.0
+        axial_j, delta_j = hc, 0.0
     elif region_j == "tail":
-        axial_j, delta_j = -HALF_CYLINDER_UM, math.pi
+        axial_j, delta_j = -hc, math.pi
     else:
         normal_j = p1 - p2
-        axial_j = -HALF_CYLINDER_UM + t * (2.0 * HALF_CYLINDER_UM)
+        axial_j = -hc + t * (2.0 * hc)
         delta_j = math.atan2(normal_j[1], normal_j[0]) - float(state.angles[j])
 
     rest_angle = _wrap_to_pi(float(state.angles[j] - state.angles[i]))
@@ -1011,11 +1132,12 @@ def _try_form_bond(
     if decision is None:
         return False
     kind, region_i, region_j, p1, p2, s, t = decision
-    return _record_bond(state, i, j, kind, region_i, region_j, p1, p2, s, t)
+    return _record_bond(state, i, j, kind, region_i, region_j, p1, p2, s, t, config.shape)
 
 
 #: 鉛直方向にこの距離（µm）以上離れたクラスタどうしは、物理的にもう接触
 #: できないとみなし、結合を試みない（A23）。細胞直径のオーダーに取ってある。
+#: 既定の細胞形状での値。形を変えたときは `_bond_decision` が 2 * shape.radius_um を使う。
 VERTICAL_CONTACT_GAP_UM = 2.0 * CELL_RADIUS_UM
 
 
@@ -1028,8 +1150,9 @@ def _apply_settling(state: SimulationState, config: DynamicsConfig, dt_s: float)
 
     if not config.settling_enabled:
         return
+    a_eff_um = config.shape.equivalent_sphere_radius_um
     for members in connected_components(config.n_cells, state.bonds):
-        velocity = _settling_velocity_um_s(len(members))
+        velocity = _settling_velocity_um_s(len(members), a_eff_um)
         idx = np.array(members)
         state.depth_um[idx] += velocity * dt_s
     np.clip(state.depth_um, 0.0, config.well_depth_um, out=state.depth_um)
@@ -1106,7 +1229,10 @@ def _free_pole_slot_for_axial(state: SimulationState, cell: int, axial: float) -
 
 
 def _apply_shear_rupture(
-    state: SimulationState, n_cells: int, shear_rate_per_s: float
+    state: SimulationState,
+    n_cells: int,
+    shear_rate_per_s: float,
+    shape: CellShape = DEFAULT_SHAPE,
 ) -> None:
     """震盪下でのせん断荷重が破断力を超える極結合（鎖の背骨）を切る。
 
@@ -1134,7 +1260,9 @@ def _apply_shear_rupture(
         ]
         if not polar_indices:
             continue
-        tension_pn = shear.chain_tension_pn(len(cells), shear_rate_per_s)
+        tension_pn = shear.chain_tension_pn(
+            len(cells), shear_rate_per_s, shape.length_um, shape.radius_um
+        )
         load_per_bond_pn = tension_pn / len(polar_indices)
         if load_per_bond_pn > model.RUPTURE_FORCE_PN:
             to_remove.update(polar_indices)
@@ -1209,15 +1337,22 @@ def run(config: DynamicsConfig) -> SimulationResult:
         config.polar_split,
         config.tip_width_um,
         distinct_adhesins_per_pole=config.distinct_adhesins_per_pole,
+        shape=config.shape,
     )
     polar_bond_count = prediction.bonds_heavy_pole
     side_bond_count = prediction.bonds_side_by_side
+    if config.bond_counts_override is not None:
+        polar_bond_count, side_bond_count = config.bond_counts_override
 
     state = _initial_state(config, rng)
 
     dt_s = min(_safe_dt_for_shear(config), _safe_dt_for_motility(config))
     n_steps = int(round(config.total_time_s / dt_s))
-    broad_cutoff = CELL_LENGTH_UM + 0.5
+    shape = config.shape
+    d_trans, d_rot = diffusion_coefficients(shape)
+    d_trans *= config.diffusion_scale[0]
+    d_rot *= config.diffusion_scale[1]
+    broad_cutoff = shape.length_um + 0.5
     periodic_x = config.periodic_x
     relaxation_iters = N_RELAXATION_ITERS
 
@@ -1229,7 +1364,7 @@ def run(config: DynamicsConfig) -> SimulationResult:
     ]
 
     for step in range(1, n_steps + 1):
-        _brownian_step(state, dt_s, rng)
+        _brownian_step(state, dt_s, rng, d_trans, d_rot)
         _apply_active_motility(state, config, dt_s, rng)
         _apply_shear_drift(state, config, dt_s)
         if periodic_x:
@@ -1240,7 +1375,7 @@ def run(config: DynamicsConfig) -> SimulationResult:
             state, broad_cutoff, config.box_size_um, periodic_x
         )
         _resolve_constraints(
-            state, candidate_pairs, config.box_size_um, relaxation_iters, periodic_x
+            state, candidate_pairs, config.box_size_um, relaxation_iters, periodic_x, shape
         )
 
         for i, j in candidate_pairs:
@@ -1252,9 +1387,9 @@ def run(config: DynamicsConfig) -> SimulationResult:
             if decision is None:
                 continue
             kind, region_i, region_j, p1, p2, s, t = decision
-            _record_bond(state, i, j, kind, region_i, region_j, p1, p2, s, t)
+            _record_bond(state, i, j, kind, region_i, region_j, p1, p2, s, t, shape)
 
-        _apply_shear_rupture(state, config.n_cells, config.shear_rate_per_s)
+        _apply_shear_rupture(state, config.n_cells, config.shear_rate_per_s, shape)
         _apply_spontaneous_dissociation(state, config.k_off_per_s, dt_s, rng)
 
         if step % config.frame_stride == 0 or step == n_steps:
@@ -1330,6 +1465,9 @@ def supernatant_fraction(frame: Frame, well_depth_um: float, top_fraction: float
 
 
 __all__ = [
+    "CoarseTimeStepWarning",
+    "DEFAULT_SHAPE",
+    "STEP_DISPLACEMENT_LIMIT",
     "D_TRANS0_UM2_S",
     "D_ROT0_RAD2_S",
     "Bond",
@@ -1341,6 +1479,8 @@ __all__ = [
     "attachment_point",
     "classify_clusters",
     "connected_components",
+    "diffusion_coefficients",
     "run",
+    "step_displacement_ratio",
     "supernatant_fraction",
 ]
