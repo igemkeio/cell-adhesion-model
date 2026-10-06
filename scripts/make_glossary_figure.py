@@ -24,6 +24,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 import numpy as np
 from matplotlib import font_manager
 from matplotlib.patches import Arc, Circle, Polygon, Rectangle
@@ -61,14 +63,23 @@ HALF_CYLINDER = 0.5 * (LENGTH - 2 * RADIUS)
 PATCH_RADIUS = math.sqrt(BRIDGE * RADIUS)
 BRIDGE_NM = BRIDGE * 1000.0
 
-COLOR_POLE = "#0E7C8A"
-COLOR_SIDE = "#A6377C"
-COLOR_ACCENT = "#A8722A"
-COLOR_BODY = "#E4EAE6"
-COLOR_PALE = "#C4CFCB"
-COLOR_EDGE = "#6E7B77"
-COLOR_INK = "#1B2422"
-COLOR_MUTED = "#7B8783"
+# 配色は全ての図・動画で共通（scripts/figstyle.py）: 極 = 青、側面 = オレンジ。
+# 寸法・注意など補助的な意味は濃い灰（色相を増やさない）。文字には同じ色相の濃い版を使う。
+from figstyle import (  # noqa: E402
+    CELL_BODY, CELL_EDGE, INK, INK_2, LATERAL, LATERAL_TEXT, MUTED, NOTE_FILL, POLAR,
+    POLAR_PALE, POLAR_TEXT,
+)
+
+COLOR_POLE = POLAR
+COLOR_SIDE = LATERAL
+COLOR_POLE_TEXT = POLAR_TEXT
+COLOR_SIDE_TEXT = LATERAL_TEXT
+COLOR_ACCENT = INK_2
+COLOR_BODY = CELL_BODY
+COLOR_PALE = POLAR_PALE  # 薄い側の極
+COLOR_EDGE = CELL_EDGE
+COLOR_INK = INK
+COLOR_MUTED = MUTED
 
 
 def capsule_outline(centre_x, centre_y, n_per_cap=120):
@@ -198,9 +209,9 @@ def panel_anatomy(axes):
 
     # 領域
     axes.text(-0.15, 0.60, "円柱部（側面）　表面の 55.6 %",
-              color=COLOR_SIDE, fontsize=9, weight="bold", ha="center")
+              color=COLOR_SIDE_TEXT, fontsize=9, weight="bold", ha="center")
     axes.text(1.62, -0.34, "極領域（半球）\n表面の 44.4 %",
-              color=COLOR_POLE, fontsize=9, weight="bold", ha="center")
+              color=COLOR_POLE_TEXT, fontsize=9, weight="bold", ha="center")
 
     # 測地距離
     theta = np.linspace(0, math.pi / 2.4, 60)
@@ -243,7 +254,7 @@ def panel_gap(axes):
         arrowprops=dict(arrowstyle="<->", color=COLOR_POLE, lw=1.5),
     )
     axes.text(0, -5.4, "接触パッチの直径 113 nm", ha="center",
-              fontsize=9.5, color=COLOR_POLE, weight="bold")
+              fontsize=9.5, color=COLOR_POLE_TEXT, weight="bold")
     axes.text(0, 12.5, "隙間  h = r² / r_cell\nh > 8 nm では架橋できない",
               ha="center", fontsize=9, color=COLOR_INK)
 
@@ -297,7 +308,7 @@ def panel_patch_vs_strip(axes):
               ha="center", fontsize=8.5, color=COLOR_MUTED)
     axes.text(left_edge + width_drawn + 0.30, y_top,
               "円盤　直径 113 nm\n面積 0.0101 µm²（表面の 0.22 %）",
-              ha="left", va="center", fontsize=9.5, color=COLOR_POLE, weight="bold")
+              ha="left", va="center", fontsize=9.5, color=COLOR_POLE_TEXT, weight="bold")
 
     # ---------------- 下段: 側面 - 側面 ----------------
     y_bottom = -1.05
@@ -320,7 +331,7 @@ def panel_patch_vs_strip(axes):
                   arrowprops=dict(arrowstyle="->", color=COLOR_MUTED, lw=1.3))
     axes.text(left_edge + strip_length * ZOOM + 0.30, y_bottom,
               "帯　幅 113 nm × 長さ 1.0 µm\n面積 0.1131 µm²（表面の 2.50 %）",
-              ha="left", va="center", fontsize=9.5, color=COLOR_SIDE, weight="bold")
+              ha="left", va="center", fontsize=9.5, color=COLOR_SIDE_TEXT, weight="bold")
 
     # ---------------- 幅が同一であることを示す ----------------
     for y, colour in ((y_top, COLOR_POLE), (y_bottom, COLOR_SIDE)):
@@ -346,7 +357,7 @@ def panel_patch_vs_strip(axes):
         "どちらの接触領域も幅は 2√(架橋長 × 細胞半径) = 113 nm で同じ。\n"
         "違いは長さだけで、それが面積比 11.3 倍の正体である。",
         ha="center", va="center", fontsize=9, color=COLOR_INK,
-        bbox=dict(boxstyle="round,pad=0.45", facecolor="#F2F4F1", edgecolor=COLOR_EDGE),
+        bbox=dict(boxstyle="round,pad=0.45", facecolor=NOTE_FILL, edgecolor=COLOR_EDGE),
     )
 
     finish(axes, (-6.1, 6.9), (-2.70, 2.10),
@@ -357,11 +368,11 @@ def panel_localization(axes):
     uniform = polar_area_fraction(LENGTH, RADIUS)
     cases = [
         (-3.4, uniform, None, f"f_pole = {uniform:.3f}\n先端集中なし",
-         "一様 ＝ 局在なし\nこれが実測値", COLOR_SIDE),
+         "一様 ＝ 局在なし\nこれが実測値", COLOR_SIDE_TEXT),
         (0.0, 0.95, None, "f_pole = 0.95\n先端集中なし",
          "極に寄っているが\n半球全体に散る", COLOR_MUTED),
         (3.4, 0.95, 0.10, "f_pole = 0.95\nw = 0.10 µm",
-         "先端に絞れている\nこれで鎖になる", COLOR_POLE),
+         "先端に絞れている\nこれで鎖になる", COLOR_POLE_TEXT),
     ]
     for x, f_pole, tip_width, label, comment, colour in cases:
         draw_cell(axes, x, 0.35)
@@ -374,11 +385,18 @@ def panel_localization(axes):
         "注意：f_pole = 0 が「局在なし」ではない。極領域は表面の 44.4 % を占めるので、"
         "f_pole = 0.444 が一様分布にあたる。0.6 や 0.8 は「やや濃縮」にすぎない。",
         ha="center", va="center", fontsize=9, color=COLOR_ACCENT,
-        bbox=dict(boxstyle="round,pad=0.45", facecolor="#F8F1E5", edgecolor=COLOR_ACCENT),
+        bbox=dict(boxstyle="round,pad=0.45", facecolor=NOTE_FILL, edgecolor=COLOR_ACCENT),
     )
 
-    finish(axes, (-5.6, 5.6), (-2.25, 1.95),
-           "D　極局在比 f_pole と先端集中度 w　（● 極のアドヘシン　● 側面のアドヘシン）")
+    finish(axes, (-5.6, 5.6), (-2.25, 1.95), "D　極局在比 f_pole と先端集中度 w")
+    # 凡例は色付きの点で示す（見出しの文字の●は色を付けられないため）
+    axes.legend(
+        handles=[
+            Line2D([], [], marker="o", ls="", color=COLOR_POLE, label="極のアドヘシン"),
+            Line2D([], [], marker="o", ls="", color=COLOR_SIDE, label="側面のアドヘシン"),
+        ],
+        loc="upper right", frameon=False, fontsize=9.5, ncol=2, bbox_to_anchor=(1.0, 1.08),
+    )
 
 
 def panel_split(axes):
@@ -391,7 +409,7 @@ def panel_split(axes):
     for x in (-3.6, -1.8, 0.0, 1.8, 3.6):
         mark_pole(axes, x, 0.72, COLOR_POLE)
     axes.text(4.3, 0.72, "鎖", fontsize=15, ha="left", va="center",
-              weight="bold", color=COLOR_POLE)
+              weight="bold", color=COLOR_POLE_TEXT)
 
     # 単極 -> 二量体
     axes.text(-4.9, -1.15, "単極\npolar_split = 1.0",
@@ -409,9 +427,15 @@ def panel_split(axes):
 
     axes.text(
         0, -2.15,
-        "濃い極（■ 濃色）と薄い側の極（■ 淡色）。鎖が伸びるには1細胞が2つの接続を要するので、"
-        "律速は薄い側の極である。",
+        "鎖が伸びるには1細胞が2つの接続を要するので、律速は薄い側の極である。",
         ha="center", va="center", fontsize=9, color=COLOR_MUTED,
+    )
+    axes.legend(
+        handles=[
+            Patch(facecolor=COLOR_POLE, label="濃い極"),
+            Patch(facecolor=COLOR_PALE, label="薄い側の極"),
+        ],
+        loc="lower center", frameon=False, fontsize=9, ncol=2, bbox_to_anchor=(0.5, -0.07),
     )
 
     finish(axes, (-7.4, 5.6), (-2.65, 1.65),
